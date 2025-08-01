@@ -9,7 +9,13 @@ const mongoose = require('mongoose');
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: ['https://taupe-crisp-4638a8.netlify.app'], // Agregá tu dominio de frontend aquí
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 console.log('Conectando a MongoDB...');
