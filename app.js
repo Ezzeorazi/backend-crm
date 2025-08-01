@@ -12,16 +12,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-console.log('Intentando conectar a MongoDB con URI:', process.env.MONGO_URI);
+console.log('Conectando a MongoDB...');
+
 
 // Conexión a MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
+mongoose.connect(process.env.MONGO_URI)
+.then(() => {
   console.log('✅ Conectado a MongoDB desde app.js');
 }).catch((err) => {
-  console.error('❌ Error de conexión a MongoDB desde app.js:', err.message);
+  console.error('❌ Error de conexión a MongoDB desde app.js:', err);
 });
 
 // Rutas
@@ -70,6 +69,10 @@ app.use('/api/tareas', tareasRoutes);
 const ordenesRoutes = require('./routes/ordenes');
 app.use('/api/ordenes', ordenesRoutes);
 
+app.use((err, req, res, next) => {
+  console.error('🚨 Error global:', err.stack);
+  res.status(500).json({ mensaje: 'Error interno del servidor' });
+});
 
 
 module.exports = app;
