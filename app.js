@@ -17,6 +17,17 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 app.use(express.json());
+// Middleware para forzar la cabecera Access-Control-Allow-Origin correctamente en Railway
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://taupe-crisp-4638a8.netlify.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 console.log('Conectando a MongoDB...');
 
