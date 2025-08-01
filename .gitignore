@@ -1,0 +1,28 @@
+# Node modules
+node_modules/
+
+# Entorno
+.env
+.env.*  # en caso de usar .env.development, .env.production, etc.
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test output
+coverage/
+*.lcov
+
+# Editor / Sistema operativo
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Archivos de compilación o temporales
+*.log
+*.tmp
+*.swp
+
+# Otros
+package-lock.json  # Opcional: si no querés trackearlo en git
