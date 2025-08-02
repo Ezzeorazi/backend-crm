@@ -5,16 +5,17 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-// ✅ CORS bien configurado para Netlify
+// Configuración global de CORS para el frontend alojado en Netlify
+const FRONTEND_URL = 'https://taupe-crisp-4638a8.netlify.app';
 const corsOptions = {
-  origin: 'https://taupe-crisp-4638a8.netlify.app', // tu frontend en Netlify
+  origin: FRONTEND_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Para preflight requests
+app.options('*', cors(corsOptions)); // Responde preflight correctamente
 
 // Middlewares
 app.use(express.json());
