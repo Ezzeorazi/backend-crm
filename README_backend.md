@@ -13,6 +13,7 @@ API REST para el CRM multi-tenant construida con **Node.js + Express + MongoDB**
 | MongoDB + Mongoose | 8.16 | Base de datos |
 | JWT (jsonwebtoken) | 9.0 | Autenticación |
 | BcryptJS | 3.0 | Hash de contraseñas |
+| Cloudinary | 1.41 | Almacenamiento de imágenes |
 | Multer | 2.0 | Upload de archivos |
 | Nodemailer | 6.9 | Envío de emails |
 | PDFKit | 0.17 | Generación de PDFs |
@@ -190,8 +191,9 @@ npm test               # Jest
 |---|---|---|
 | POST | `/api/empresas` | Registrar empresa + admin (flujo demo) |
 | GET | `/api/empresas` | Listar empresas |
-| GET | `/api/empresa/:id` | Ver empresa |
-| POST | `/api/empresa/logo` | Subir logo (PNG) |
+| GET | `/api/empresa` | Ver datos de la empresa |
+| PUT | `/api/empresa` | Actualizar datos de la empresa |
+| POST | `/api/empresa/logo` | Subir logo (Cloudinary) |
 
 ### Usuarios
 | Método | Ruta | Descripción |
@@ -341,6 +343,7 @@ Cobertura estimada: ~15%. No existen tests para los controladores de ventas, pro
 - Alertas diarias de stock bajo por email
 - Control de acceso por roles en endpoints criticos
 - Indices MongoDB para filtros por empresa
+- Despliegue en **Render** (con manejo dinámico de CORS)
 
 ### Pendiente antes de aceptar usuarios reales
 
