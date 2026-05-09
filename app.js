@@ -71,6 +71,7 @@ app.use('/api/movimientos', require('./routes/movimientos'));
 app.use('/api/tareas', require('./routes/tareas'));
 app.use('/api/ordenes',         require('./routes/ordenes'));
 app.use('/api/ordenes-compra', require('./routes/ordenCompras'));
+app.use('/api/search', require('./routes/search'));
 
 app.use(errorMiddleware);
 

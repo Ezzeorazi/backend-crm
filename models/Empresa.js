@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const configuracionSchema = new mongoose.Schema({
   moneda:          { type: String, default: 'ARS' },
+  tipoCambio:      { type: Number, default: 1 },
   idioma:          { type: String, default: 'es' },
   ivaDefault:      { type: Number, default: 21 },
   tipoFacturacion: { type: String, enum: ['A', 'B', 'C', 'X'], default: 'B' }

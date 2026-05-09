@@ -98,7 +98,7 @@ const obtenerEmpresa = async (req, res) => {
 
 const actualizarEmpresa = async (req, res) => {
   try {
-    const { nombre, razonSocial, direccion, telefono, colorPrimario } = req.body;
+    const { nombre, razonSocial, direccion, telefono, colorPrimario, configuracion } = req.body;
     const empresa = await Empresa.findById(req.empresaId);
     
     if (!empresa) return res.status(404).json({ mensaje: 'Empresa no encontrada' });
@@ -108,6 +108,11 @@ const actualizarEmpresa = async (req, res) => {
     if (direccion !== undefined) empresa.direccion = direccion;
     if (telefono !== undefined) empresa.telefono = telefono;
     if (colorPrimario) empresa.colorPrimario = colorPrimario;
+    
+    if (configuracion) {
+      if (configuracion.moneda !== undefined) empresa.configuracion.moneda = configuracion.moneda;
+      if (configuracion.tipoCambio !== undefined) empresa.configuracion.tipoCambio = configuracion.tipoCambio;
+    }
 
     await empresa.save();
     res.json(empresa);
