@@ -86,4 +86,34 @@ const subirLogo = async (req, res) => {
   }
 };
 
-module.exports = { crearEmpresaDemo, subirLogo, uploadLogo };
+const obtenerEmpresa = async (req, res) => {
+  try {
+    const empresa = await Empresa.findById(req.empresaId);
+    if (!empresa) return res.status(404).json({ mensaje: 'Empresa no encontrada' });
+    res.json(empresa);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al obtener empresa', error: error.message });
+  }
+};
+
+const actualizarEmpresa = async (req, res) => {
+  try {
+    const { nombre, razonSocial, direccion, telefono, colorPrimario } = req.body;
+    const empresa = await Empresa.findById(req.empresaId);
+    
+    if (!empresa) return res.status(404).json({ mensaje: 'Empresa no encontrada' });
+    
+    if (nombre) empresa.nombre = nombre;
+    if (razonSocial !== undefined) empresa.razonSocial = razonSocial;
+    if (direccion !== undefined) empresa.direccion = direccion;
+    if (telefono !== undefined) empresa.telefono = telefono;
+    if (colorPrimario) empresa.colorPrimario = colorPrimario;
+
+    await empresa.save();
+    res.json(empresa);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al actualizar empresa', error: error.message });
+  }
+};
+
+module.exports = { crearEmpresaDemo, subirLogo, uploadLogo, obtenerEmpresa, actualizarEmpresa };
