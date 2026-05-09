@@ -2,7 +2,11 @@ const Tarea = require('../models/Tarea');
 
 const obtenerTareas = async (req, res) => {
   try {
-    const tareas = await Tarea.find({ empresaId: req.empresaId });
+    const tareas = await Tarea.find({ empresaId: req.empresaId })
+      .populate('asignadoA', 'nombre avatar')
+      .populate('creadoPor',  'nombre')
+      .populate('contactoId', 'nombre razonSocial')
+      .sort({ fechaVencimiento: 1, createdAt: -1 });
     res.json(tareas);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al obtener tareas', error: error.message });
@@ -11,7 +15,11 @@ const obtenerTareas = async (req, res) => {
 
 const obtenerTarea = async (req, res) => {
   try {
-    const tarea = await Tarea.findOne({ _id: req.params.id, empresaId: req.empresaId });
+    const tarea = await Tarea.findOne({ _id: req.params.id, empresaId: req.empresaId })
+      .populate('asignadoA',            'nombre avatar')
+      .populate('creadoPor',            'nombre')
+      .populate('contactoId',           'nombre razonSocial email')
+      .populate('comentarios.autor',    'nombre avatar');
     if (!tarea) return res.status(404).json({ mensaje: 'Tarea no encontrada' });
     res.json(tarea);
   } catch (error) {
@@ -21,7 +29,11 @@ const obtenerTarea = async (req, res) => {
 
 const crearTarea = async (req, res) => {
   try {
-    const tarea = new Tarea({ ...req.body, empresaId: req.empresaId });
+    const tarea = new Tarea({
+      ...req.body,
+      empresaId: req.empresaId,
+      creadoPor: req.usuario?.id
+    });
     await tarea.save();
     res.status(201).json(tarea);
   } catch (error) {
@@ -53,10 +65,20 @@ const eliminarTarea = async (req, res) => {
   }
 };
 
-module.exports = {
-  obtenerTareas,
-  obtenerTarea,
-  crearTarea,
-  actualizarTarea,
-  eliminarTarea
+const agregarComentario = async (req, res) => {
+  try {
+    const { texto } = req.body;
+    if (!texto?.trim()) return res.status(400).json({ mensaje: 'El comentario no puede estar vacío' });
+    const tarea = await Tarea.findOneAndUpdate(
+      { _id: req.params.id, empresaId: req.empresaId },
+      { $push: { comentarios: { texto, autor: req.usuario.id, fecha: new Date() } } },
+      { new: true }
+    ).populate('comentarios.autor', 'nombre avatar');
+    if (!tarea) return res.status(404).json({ mensaje: 'Tarea no encontrada' });
+    res.json(tarea);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al agregar comentario', error: error.message });
+  }
 };
+
+module.exports = { obtenerTareas, obtenerTarea, crearTarea, actualizarTarea, eliminarTarea, agregarComentario };

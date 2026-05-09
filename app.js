@@ -2,31 +2,55 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
+const logger = require('./utils/logger');
+const errorMiddleware = require('./middleware/errorMiddleware');
 
 const app = express();
 
-// Configuración global de CORS para el frontend alojado en Netlify
 const corsOptions = {
-  origin:'https://taupe-crisp-4638a8.netlify.app',
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : 'http://localhost:5173',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));
-// Middlewares
+app.use(helmet());
 app.use(express.json());
+app.use(mongoSanitize());
 
-// 🔌 Conexión a MongoDB
-console.log('Conectando a MongoDB...');
+const morganFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
+app.use(
+  morgan(morganFormat, {
+    stream: { write: (message) => logger.info(message.trim()) },
+  })
+);
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: { mensaje: 'Límite de peticiones excedido, intente más tarde.' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { mensaje: 'Demasiados intentos de inicio de sesión, intente más tarde.' }
+});
+
+app.use('/api', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Conectado a MongoDB desde app.js'))
-  .catch(err => console.error('❌ Error de conexión a MongoDB:', err));
+  .then(() => logger.info('Conectado a MongoDB'))
+  .catch(err => logger.error('Error de conexion a MongoDB:', err));
 
-// 📦 Rutas
 app.use('/api/usuarios', require('./routes/userRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/protegida', require('./routes/protegidaRoutes'));
 app.use('/api/productos', require('./routes/productRoutes'));
 app.use('/api/empresas', require('./routes/empresas'));
 app.use('/api/empresa', require('./routes/empresa'));
@@ -38,12 +62,9 @@ app.use('/api/facturas', require('./routes/facturas'));
 app.use('/api/pagos', require('./routes/pagos'));
 app.use('/api/movimientos', require('./routes/movimientos'));
 app.use('/api/tareas', require('./routes/tareas'));
-app.use('/api/ordenes', require('./routes/ordenes'));
+app.use('/api/ordenes',         require('./routes/ordenes'));
+app.use('/api/ordenes-compra', require('./routes/ordenCompras'));
 
-// 🛑 Middleware global de errores
-app.use((err, req, res, next) => {
-  console.error('🚨 Error global:', err.stack);
-  res.status(500).json({ mensaje: 'Error interno del servidor' });
-});
+app.use(errorMiddleware);
 
 module.exports = app;

@@ -9,6 +9,7 @@ const {
   crearUsuario,
   obtenerUsuarioPorId,
   actualizarUsuario,
+  cambiarPasswordPerfil,
   eliminarUsuario
 } = require('../controllers/userController');
 const { verificarToken } = require('../middleware/authMiddleware');
@@ -29,6 +30,7 @@ router.post(
   crearUsuario
 );
 router.get('/:id', verificarToken, obtenerUsuarioPorId);
+router.put('/perfil/password', verificarToken, cambiarPasswordPerfil);
 router.put('/:id', verificarToken, actualizarUsuario);
 router.delete('/:id', verificarToken, eliminarUsuario);
 
