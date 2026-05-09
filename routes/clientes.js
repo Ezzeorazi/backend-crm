@@ -19,7 +19,7 @@ router.post(
   verificarToken,
   [
     check('nombre', 'El nombre es obligatorio').not().isEmpty(),
-    check('email').optional().isEmail().withMessage('Email inválido'),
+    check('email').optional({ checkFalsy: true }).isEmail().withMessage('Email inválido'),
     check('telefono').optional().isString()
   ],
   validar,
@@ -30,7 +30,7 @@ router.put(
   '/:id',
   verificarToken,
   [
-    check('email').optional().isEmail().withMessage('Email inválido'),
+    check('email').optional({ checkFalsy: true }).isEmail().withMessage('Email inválido'),
     check('telefono').optional().isString()
   ],
   validar,
