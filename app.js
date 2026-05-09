@@ -49,6 +49,9 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => logger.info('Conectado a MongoDB'))
   .catch(err => logger.error('Error de conexion a MongoDB:', err));
 
+// Ruta de healthcheck (Ping) para mantener el servidor despierto o verificar estado
+app.get('/api/status', (req, res) => res.status(200).json({ status: 'ok', server: 'awake' }));
+
 app.use('/api/usuarios', require('./routes/userRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/productos', require('./routes/productRoutes'));
