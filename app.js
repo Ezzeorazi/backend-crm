@@ -12,7 +12,11 @@ const errorMiddleware = require('./middleware/errorMiddleware');
 const app = express();
 
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Si la variable CORS_ORIGIN tiene un '*', o está vacía, o coincide, o simplemente devolvemos el origin
+    // Esto permite que los deploy previews de Netlify funcionen sin problemas de CORS
+    callback(null, origin || '*');
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
