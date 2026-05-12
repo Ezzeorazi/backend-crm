@@ -208,6 +208,38 @@ const recibirOrden = async (req, res) => {
   }
 };
 
+// Registrar pago completo para órdenes contado (sin cuotas)
+const registrarPagoContado = async (req, res) => {
+  try {
+    const { metodoPago = 'transferencia', notas = '', fecha } = req.body;
+    const orden = await OrdenCompra.findOne({ _id: req.params.id, empresaId: req.empresaId });
+    if (!orden) return res.status(404).json({ mensaje: 'Orden de compra no encontrada' });
+    if (orden.condicionPago !== 'contado') return res.status(400).json({ mensaje: 'Usá el endpoint de cuotas para órdenes en cuotas' });
+    if (orden.estadoPago === 'pagado') return res.status(400).json({ mensaje: 'La orden ya está pagada' });
+
+    orden.estadoPago = 'pagado';
+    await orden.save();
+
+    const numOP = await Contador.siguiente(req.empresaId, 'orden_pago');
+    const op = await OrdenPago.create({
+      empresaId:  req.empresaId,
+      numero:     numOP,
+      compraId:   orden._id,
+      proveedor:  orden.proveedor,
+      concepto:   `Pago OC-${String(orden.numero).padStart(5, '0')}`,
+      monto:      orden.total,
+      fecha:      fecha ? new Date(fecha) : new Date(),
+      metodoPago,
+      estado:     'ejecutada',
+      notas,
+    });
+
+    res.json({ orden, ordenPago: op });
+  } catch (error) {
+    res.status(500).json({ mensaje: error.message });
+  }
+};
+
 const eliminarOrden = async (req, res) => {
   try {
     const orden = await OrdenCompra.findOneAndDelete({ _id: req.params.id, empresaId: req.empresaId });
@@ -218,4 +250,4 @@ const eliminarOrden = async (req, res) => {
   }
 };
 
-module.exports = { obtenerOrdenes, obtenerOrden, crearOrden, actualizarOrden, recibirOrden, pagarCuota, eliminarOrden };
+module.exports = { obtenerOrdenes, obtenerOrden, crearOrden, actualizarOrden, recibirOrden, pagarCuota, registrarPagoContado, eliminarOrden };

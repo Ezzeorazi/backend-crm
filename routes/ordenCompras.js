@@ -8,6 +8,7 @@ const {
   actualizarOrden,
   recibirOrden,
   pagarCuota,
+  registrarPagoContado,
   eliminarOrden
 } = require('../controllers/ordenCompraController');
 
@@ -17,6 +18,7 @@ router.post('/',         verificarToken, permitirRoles('admin', 'compras'), crea
 router.put('/:id',       verificarToken, permitirRoles('admin', 'compras'), actualizarOrden);
 router.post('/:id/recibir',    verificarToken, permitirRoles('admin', 'compras', 'inventario'), recibirOrden);
 router.post('/:id/pagar-cuota', verificarToken, permitirRoles('admin', 'compras'), pagarCuota);
+router.post('/:id/pagar',      verificarToken, permitirRoles('admin', 'compras'), registrarPagoContado);
 router.delete('/:id',    verificarToken, permitirRoles('admin'), eliminarOrden);
 
 module.exports = router;
