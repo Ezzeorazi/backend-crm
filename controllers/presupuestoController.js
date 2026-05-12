@@ -2,8 +2,18 @@ const Presupuesto = require('../models/Presupuesto');
 const Contador    = require('../models/Contador');
 const Empresa     = require('../models/Empresa');
 const PDFDocument = require('pdfkit');
-const path = require('path');
-const fs   = require('fs');
+const https = require('https');
+const http  = require('http');
+
+const fetchImageBuffer = (url) => new Promise((resolve, reject) => {
+  const client = url.startsWith('https') ? https : http;
+  client.get(url, (res) => {
+    const chunks = [];
+    res.on('data', chunk => chunks.push(chunk));
+    res.on('end', () => resolve(Buffer.concat(chunks)));
+    res.on('error', reject);
+  }).on('error', reject);
+});
 
 const obtenerPresupuestos = async (req, res) => {
   try {
@@ -105,8 +115,10 @@ const descargarPDF = async (req, res) => {
 
     // Cabecera
     if (empresa?.logoUrl) {
-      const logoPath = path.join(__dirname, '..', empresa.logoUrl);
-      if (fs.existsSync(logoPath)) doc.image(logoPath, 50, 45, { width: 100 });
+      try {
+        const logoBuffer = await fetchImageBuffer(empresa.logoUrl);
+        doc.image(logoBuffer, 50, 45, { width: 100 });
+      } catch { /* logo no disponible, continuar sin él */ }
     }
     doc.fontSize(20).font('Helvetica-Bold').text('PRESUPUESTO', 0, 50, { align: 'right' });
     doc.fontSize(10).font('Helvetica').text(`Nº ${String(presupuesto.numero).padStart(5, '0')}`, { align: 'right' });
