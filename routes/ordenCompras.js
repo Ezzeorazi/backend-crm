@@ -7,6 +7,7 @@ const {
   crearOrden,
   actualizarOrden,
   recibirOrden,
+  pagarCuota,
   eliminarOrden
 } = require('../controllers/ordenCompraController');
 
@@ -14,7 +15,8 @@ router.get('/',          verificarToken, obtenerOrdenes);
 router.get('/:id',       verificarToken, obtenerOrden);
 router.post('/',         verificarToken, permitirRoles('admin', 'compras'), crearOrden);
 router.put('/:id',       verificarToken, permitirRoles('admin', 'compras'), actualizarOrden);
-router.post('/:id/recibir', verificarToken, permitirRoles('admin', 'compras', 'inventario'), recibirOrden);
+router.post('/:id/recibir',    verificarToken, permitirRoles('admin', 'compras', 'inventario'), recibirOrden);
+router.post('/:id/pagar-cuota', verificarToken, permitirRoles('admin', 'compras'), pagarCuota);
 router.delete('/:id',    verificarToken, permitirRoles('admin'), eliminarOrden);
 
 module.exports = router;

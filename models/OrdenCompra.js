@@ -2,11 +2,20 @@ const mongoose = require('mongoose');
 
 const productoItemSchema = new mongoose.Schema({
   producto:  { type: mongoose.Schema.Types.ObjectId, ref: 'Producto' },
-  nombre:    { type: String, required: true }, // snapshot
-  sku:       String,                           // snapshot
+  nombre:    { type: String, required: true },
+  sku:       String,
   cantidad:  { type: Number, required: true, min: 1 },
   precio:    { type: Number, required: true, min: 0 },
   subtotal:  { type: Number, required: true, min: 0 }
+}, { _id: false });
+
+const cuotaSchema = new mongoose.Schema({
+  numero:           { type: Number, required: true },
+  monto:            { type: Number, required: true, min: 0 },
+  fechaVencimiento: { type: Date, required: true },
+  estado:           { type: String, enum: ['pendiente', 'pagada'], default: 'pendiente' },
+  fechaPago:        Date,
+  notas:            String,
 }, { _id: false });
 
 const ordenCompraSchema = new mongoose.Schema({
@@ -23,6 +32,22 @@ const ordenCompraSchema = new mongoose.Schema({
     enum:    ['borrador', 'enviada', 'confirmada', 'recibida_parcial', 'recibida', 'cancelada'],
     default: 'borrador'
   },
+  metodoPago: {
+    type:    String,
+    enum:    ['efectivo', 'tarjeta', 'transferencia', 'credito_proveedor'],
+    default: 'efectivo'
+  },
+  condicionPago: {
+    type:    String,
+    enum:    ['contado', 'cuotas'],
+    default: 'contado'
+  },
+  estadoPago: {
+    type:    String,
+    enum:    ['pendiente', 'parcial', 'pagado'],
+    default: 'pendiente'
+  },
+  cuotas:              [cuotaSchema],
   fechaEstimadaEntrega: Date,
   notas: String
 }, {
