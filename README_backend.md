@@ -347,35 +347,39 @@ Cobertura estimada: ~15%. No existen tests para los controladores de ventas, pro
 
 ### Pendiente antes de aceptar usuarios reales
 
-#### Seguridad (critico)
-- [ ] Agregar `helmet` para headers HTTP seguros
-- [ ] Rate limiting en `/api/auth/login` y endpoints de escritura (ej: `express-rate-limit`)
+#### Seguridad
+- [x] `helmet` para headers HTTP seguros — **implementado** (`app.js`)
+- [x] Rate limiting en `/api/auth/login` y `/api/*` — **implementado** (`express-rate-limit` en `app.js`)
+- [x] Sanitizacion contra inyeccion NoSQL — **implementado** (`express-mongo-sanitize`)
+- [x] Trust proxy configurado para Render — **implementado** (`app.set('trust proxy', 1)`)
 - [ ] Rotar `JWT_SECRET` y usar un secreto de al menos 64 caracteres aleatorios
-- [ ] Sanitizacion contra inyeccion NoSQL (`express-mongo-sanitize`)
 - [ ] Validacion de input completa y consistente en todos los controllers (express-validator esta incluido pero su uso es inconsistente)
-- [ ] Recuperacion de contrasena (flujo "olvidé mi contraseña" con token temporal)
+
+#### Autenticacion
+- [x] Recuperacion de contrasena — **implementado** (flujo frontend en `ForgotPassword.jsx`)
+- [ ] Verificar que el flujo completo de reset de password funcione end-to-end con email real
 
 #### Observabilidad
-- [ ] Logging estructurado (reemplazar `console.log` con Winston o Pino)
-- [ ] Manejo de errores centralizado con codigos de error especificos
+- [x] Logging estructurado — **implementado** (Winston en `utils/logger.js`, Morgan integrado)
+- [x] Middleware de errores centralizado — **implementado** (`middleware/errorMiddleware.js`)
 - [ ] Monitoreo de errores en produccion (Sentry o similar)
 
 #### Infraestructura
 - [ ] Dockerizar la aplicacion (`Dockerfile` + `docker-compose.yml`)
 - [ ] Pipeline CI/CD (GitHub Actions o similar) con tests automatizados
 - [ ] Configurar MongoDB en produccion con replica set y backups automaticos
-- [ ] Variables de entorno SMTP configuradas y probadas
 
 #### Calidad
-- [ ] Ampliar cobertura de tests a controladores principales (ventas, productos, usuarios)
+- [ ] Ampliar cobertura de tests a controladores principales (ventas, productos, usuarios) — cobertura actual ~15%
 - [ ] Tests de integracion contra base de datos de test
 - [ ] Documentacion de API con Swagger/OpenAPI
 
 #### Funcionalidades faltantes
 - [ ] Paginacion en todos los endpoints de listado (algunos no la tienen)
-- [ ] Endpoint para cambiar contrasena desde el dashboard
 - [ ] Filtros de busqueda y fecha en listados (ventas, facturas, movimientos)
 - [ ] Exportacion de reportes a Excel/PDF
+- [ ] PDF descargable de facturas (presupuestos ya tienen PDF)
+- [ ] Endpoint `POST /api/tareas/:id/comentarios` (ya existe en el backend, verificar que la ruta este registrada)
 
 ---
 
