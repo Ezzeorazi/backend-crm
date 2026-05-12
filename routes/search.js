@@ -24,8 +24,8 @@ router.get('/', verificarToken, async (req, res) => {
 
       Product.find({
         empresaId,
-        $or: [{ nombre: regex }, { codigo: regex }]
-      }).limit(5).select('nombre codigo precio'),
+        $or: [{ nombre: regex }, { sku: regex }]
+      }).limit(5).select('nombre sku precio'),
 
       // Para las ventas podemos buscar por número si se guarda, o hacemos un match con el cliente
       Venta.find({
