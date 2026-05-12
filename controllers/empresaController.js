@@ -2,6 +2,7 @@ const Empresa = require('../models/Empresa');
 const User = require('../models/User');
 const multer = require('multer');
 const cloudinary = require('../config/cloudinary');
+const { sendMail } = require('../utils/mailer');
 
 const uploadLogo = multer({
   storage: multer.memoryStorage(),
@@ -63,6 +64,27 @@ const crearEmpresaDemo = async (req, res) => {
     await Empresa.findByIdAndDelete(empresaGuardada._id).catch(() => {});
     console.error('Error al guardar usuario admin:', error);
     return res.status(500).json({ mensaje: 'Error al crear el usuario administrador.', error: error.message });
+  }
+
+  // Notificación al owner de la plataforma
+  if (process.env.ADMIN_NOTIFY_EMAIL && process.env.SMTP_USER) {
+    const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+    sendMail({
+      to: process.env.ADMIN_NOTIFY_EMAIL,
+      subject: 'Nueva cuenta creada — Nimbus CRM',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+          <h2 style="color:#4f46e5">Nueva cuenta registrada</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:6px 0;color:#64748b;width:140px">Empresa</td><td><strong>${nombre}</strong></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Plan</td><td>${plan || 'free'}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Admin</td><td>${nombreUsuario}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Email</td><td>${emailUsuario}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Fecha</td><td>${fecha}</td></tr>
+          </table>
+        </div>
+      `,
+    }).catch(err => console.error('Error al enviar notificación de nueva cuenta:', err.message));
   }
 
   res.status(201).json({ mensaje: 'Empresa y usuario creados' });
