@@ -1,19 +1,18 @@
 const Empresa = require('../models/Empresa');
 const User = require('../models/User');
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('../config/cloudinary');
 
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'nimbus-logos',
-    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
-    public_id: (req, file) => `logo_${req.empresaId}_${Date.now()}`,
+const uploadLogo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    allowed.includes(file.mimetype)
+      ? cb(null, true)
+      : cb(new Error('Formato no soportado. Usá PNG, JPG o WEBP.'));
   },
 });
-
-const uploadLogo = multer({ storage });
 
 const crearEmpresaDemo = async (req, res) => {
   const {
@@ -72,16 +71,23 @@ const crearEmpresaDemo = async (req, res) => {
 const subirLogo = async (req, res) => {
   try {
     const empresa = await Empresa.findById(req.empresaId);
-    if (!empresa) {
-      return res.status(404).json({ mensaje: 'Empresa no encontrada' });
-    }
+    if (!empresa) return res.status(404).json({ mensaje: 'Empresa no encontrada' });
+
     if (req.file) {
-      const logoPath = req.file.path; // Cloudinary nos devuelve la URL en req.file.path
-      empresa.logoUrl = logoPath;
+      const b64 = Buffer.from(req.file.buffer).toString('base64');
+      const dataUri = `data:${req.file.mimetype};base64,${b64}`;
+      const result = await cloudinary.uploader.upload(dataUri, {
+        folder: 'nimbus-logos',
+        public_id: `logo_${req.empresaId}`,
+        overwrite: true,
+      });
+      empresa.logoUrl = result.secure_url;
       await empresa.save();
     }
+
     res.json({ logoUrl: empresa.logoUrl });
   } catch (error) {
+    console.error('Error al subir logo:', error);
     res.status(500).json({ mensaje: 'Error al subir logo', error: error.message });
   }
 };
