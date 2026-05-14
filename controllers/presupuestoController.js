@@ -1,4 +1,6 @@
 const Presupuesto = require('../models/Presupuesto');
+const Venta       = require('../models/Venta');
+const Factura     = require('../models/Factura');
 const Contador    = require('../models/Contador');
 const Empresa     = require('../models/Empresa');
 const PDFDocument = require('pdfkit');
@@ -20,7 +22,38 @@ const obtenerPresupuestos = async (req, res) => {
     const presupuestos = await Presupuesto.find({ empresaId: req.empresaId })
       .populate('cliente', 'nombre razonSocial email')
       .sort({ createdAt: -1 });
-    res.json(presupuestos);
+
+    // Enriquecer con seguimiento: venta y factura vinculadas
+    const ids      = presupuestos.map(p => p._id);
+    const ventas   = await Venta.find({ empresaId: req.empresaId, presupuesto: { $in: ids } })
+      .select('numero estado presupuesto');
+    const ventaMap = {};
+    ventas.forEach(v => { ventaMap[v.presupuesto.toString()] = v; });
+
+    const ventaIds    = ventas.map(v => v._id);
+    const facturas    = await Factura.find({ empresaId: req.empresaId, venta: { $in: ventaIds } })
+      .select('numero tipo estado venta');
+    const facturaMap  = {};
+    facturas.forEach(f => { facturaMap[f.venta.toString()] = f; });
+
+    const resultado = presupuestos.map(p => {
+      const obj   = p.toObject();
+      const venta = ventaMap[p._id.toString()];
+      obj.seguimiento = {
+        venta:   venta
+          ? { _id: venta._id, numero: venta.numero, estado: venta.estado }
+          : null,
+        factura: venta && facturaMap[venta._id.toString()]
+          ? (() => {
+              const f = facturaMap[venta._id.toString()];
+              return { _id: f._id, numero: f.numero, tipo: f.tipo, estado: f.estado };
+            })()
+          : null,
+      };
+      return obj;
+    });
+
+    res.json(resultado);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al obtener presupuestos', error: error.message });
   }
@@ -76,12 +109,26 @@ const crearPresupuesto = async (req, res) => {
 
 const actualizarPresupuesto = async (req, res) => {
   try {
+    const presupuesto = await Presupuesto.findOne({ _id: req.params.id, empresaId: req.empresaId });
+    if (!presupuesto) return res.status(404).json({ mensaje: 'Presupuesto no encontrado' });
+
+    let updates;
+    if (presupuesto.estado === 'borrador') {
+      // Borrador: se puede editar todo
+      updates = req.body;
+    } else {
+      // Emitido: solo estado y notas son modificables
+      const { estado, notas } = req.body;
+      updates = {};
+      if (estado)              updates.estado = estado;
+      if (notas !== undefined) updates.notas  = notas;
+    }
+
     const actualizado = await Presupuesto.findOneAndUpdate(
       { _id: req.params.id, empresaId: req.empresaId },
-      req.body,
+      updates,
       { new: true, runValidators: true }
     );
-    if (!actualizado) return res.status(404).json({ mensaje: 'Presupuesto no encontrado' });
     res.json(actualizado);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al actualizar presupuesto', error: error.message });
@@ -90,8 +137,14 @@ const actualizarPresupuesto = async (req, res) => {
 
 const eliminarPresupuesto = async (req, res) => {
   try {
-    const eliminado = await Presupuesto.findOneAndDelete({ _id: req.params.id, empresaId: req.empresaId });
-    if (!eliminado) return res.status(404).json({ mensaje: 'Presupuesto no encontrado' });
+    const presupuesto = await Presupuesto.findOne({ _id: req.params.id, empresaId: req.empresaId });
+    if (!presupuesto) return res.status(404).json({ mensaje: 'Presupuesto no encontrado' });
+
+    if (presupuesto.estado !== 'borrador') {
+      return res.status(400).json({ mensaje: 'Solo se pueden eliminar presupuestos en borrador. Los presupuestos emitidos quedan registrados permanentemente.' });
+    }
+
+    await presupuesto.deleteOne();
     res.json({ mensaje: 'Presupuesto eliminado' });
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al eliminar presupuesto', error: error.message });
