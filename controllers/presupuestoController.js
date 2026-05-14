@@ -73,11 +73,11 @@ const obtenerPresupuesto = async (req, res) => {
 
 const crearPresupuesto = async (req, res) => {
   try {
-    const { cliente, productos, notas, estado = 'borrador', validezDias = 30, descuento = 0, iva = 0 } = req.body;
+    const { cliente, productos, notas, estado = 'borrador', validezDias = 30, descuento = 0, iva: ivaPct = 0 } = req.body;
 
-    // Calcular subtotal y total si no vienen calculados
+    // iva en req.body es el porcentaje (ej: 16), calculamos el monto
     const subtotal = parseFloat(productos.reduce((s, p) => s + (p.subtotal ?? p.precio * p.cantidad), 0).toFixed(2));
-    const ivaCalc  = parseFloat((subtotal * (iva / 100)).toFixed(2));
+    const ivaCalc  = parseFloat((subtotal * (ivaPct / 100)).toFixed(2));
     const total    = parseFloat((subtotal - descuento + ivaCalc).toFixed(2));
     const vencimiento = new Date();
     vencimiento.setDate(vencimiento.getDate() + validezDias);
@@ -93,6 +93,7 @@ const crearPresupuesto = async (req, res) => {
       subtotal,
       descuento,
       iva: ivaCalc,
+      ivaPct,
       total,
       validezDias,
       vencimiento,
@@ -114,8 +115,12 @@ const actualizarPresupuesto = async (req, res) => {
 
     let updates;
     if (presupuesto.estado === 'borrador') {
-      // Borrador: se puede editar todo
-      updates = req.body;
+      // Borrador: recalcular montos igual que en creación
+      const { cliente, productos, notas, estado, validezDias = 30, descuento = 0, iva: ivaPct = 0 } = req.body;
+      const subtotal = parseFloat(productos.reduce((s, p) => s + (p.subtotal ?? p.precio * p.cantidad), 0).toFixed(2));
+      const ivaCalc  = parseFloat((subtotal * (ivaPct / 100)).toFixed(2));
+      const total    = parseFloat((subtotal - descuento + ivaCalc).toFixed(2));
+      updates = { cliente, productos, subtotal, descuento, iva: ivaCalc, ivaPct, total, validezDias, notas, estado };
     } else {
       // Emitido: solo estado y notas son modificables
       const { estado, notas } = req.body;
@@ -242,7 +247,10 @@ const descargarPDF = async (req, res) => {
     }
     if (presupuesto.iva > 0) {
       doc.moveDown(0.5);
-      doc.text(`IVA (${presupuesto.validezDias}%):`, totX);
+      const ivaPctLabel = presupuesto.ivaPct || (presupuesto.subtotal > 0
+        ? parseFloat(((presupuesto.iva / presupuesto.subtotal) * 100).toFixed(1))
+        : 0);
+      doc.text(`IVA (${ivaPctLabel}%):`, totX);
       doc.text(formatter.format(presupuesto.iva), totX + 105, doc.y - doc.currentLineHeight(), { width: 65, align: 'right' });
     }
     doc.moveDown(0.5);

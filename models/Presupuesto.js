@@ -18,7 +18,8 @@ const presupuestoSchema = new mongoose.Schema({
   productos:   [productoItemSchema],
   subtotal:    { type: Number, required: true, min: 0 },
   descuento:   { type: Number, default: 0, min: 0 }, // monto global
-  iva:         { type: Number, default: 0, min: 0 },
+  iva:         { type: Number, default: 0, min: 0 }, // monto calculado
+  ivaPct:      { type: Number, default: 0, min: 0 }, // porcentaje (ej: 16)
   total:       { type: Number, required: true, min: 0 },
   validezDias: { type: Number, default: 30 },
   vencimiento: Date,
