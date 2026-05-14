@@ -82,12 +82,51 @@ const crearFactura = async (req, res) => {
 
 const actualizarFactura = async (req, res) => {
   try {
+    const factura = await Factura.findOne({ _id: req.params.id, empresaId: req.empresaId });
+    if (!factura) return res.status(404).json({ mensaje: 'Factura no encontrada' });
+
+    if (factura.estado === 'pagada' || factura.estado === 'anulada') {
+      // Solo permite cambiar estado (para anular desde el frontend)
+      const { estado } = req.body;
+      if (!estado) return res.status(400).json({ mensaje: 'No se puede editar una factura pagada o anulada' });
+      const actualizada = await Factura.findOneAndUpdate(
+        { _id: req.params.id, empresaId: req.empresaId },
+        { estado },
+        { new: true }
+      );
+      return res.json(actualizada);
+    }
+
+    const { tipo, porcentajeIva, descuento, notas, vencimiento, estado } = req.body;
+    const updates = {};
+
+    if (estado)                updates.estado     = estado;
+    if (tipo)                  updates.tipo       = tipo;
+    if (notas !== undefined)   updates.notas      = notas;
+    if (vencimiento)           updates.vencimiento = vencimiento;
+
+    const subtotal = factura.subtotal;
+    const newDesc  = descuento !== undefined ? parseFloat(descuento) : factura.descuento;
+
+    if (porcentajeIva !== undefined) {
+      const pct   = parseFloat(porcentajeIva);
+      const iva   = parseFloat((subtotal * (pct / 100)).toFixed(2));
+      const total = parseFloat((subtotal - newDesc + iva).toFixed(2));
+      updates.porcentajeIva = pct;
+      updates.iva           = iva;
+      updates.total         = total;
+      updates.descuento     = newDesc;
+    } else if (descuento !== undefined) {
+      const total   = parseFloat((subtotal - newDesc + factura.iva).toFixed(2));
+      updates.descuento = newDesc;
+      updates.total     = total;
+    }
+
     const actualizada = await Factura.findOneAndUpdate(
       { _id: req.params.id, empresaId: req.empresaId },
-      req.body,
-      { new: true }
+      updates,
+      { new: true, runValidators: true }
     );
-    if (!actualizada) return res.status(404).json({ mensaje: 'Factura no encontrada' });
     res.json(actualizada);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al actualizar factura', error: error.message });

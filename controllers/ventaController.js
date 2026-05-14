@@ -115,14 +115,29 @@ const crearVenta = async (req, res) => {
 
 const actualizarVenta = async (req, res) => {
   try {
-    // Solo permite cambiar estado y notas — los items son inmutables post-creación
-    const { estado, notas } = req.body;
+    const venta = await Venta.findOne({ _id: req.params.id, empresaId: req.empresaId });
+    if (!venta) return res.status(404).json({ mensaje: 'Venta no encontrada' });
+
+    const { estado, notas, porcentajeIva } = req.body;
+    const updates = {};
+
+    if (estado)              updates.estado = estado;
+    if (notas !== undefined) updates.notas  = notas;
+
+    // Permite recalcular IVA mientras la venta no esté cerrada
+    if (porcentajeIva !== undefined && !['completado', 'cancelado'].includes(venta.estado)) {
+      const pct   = parseFloat(porcentajeIva);
+      const iva   = parseFloat((venta.subtotal * (pct / 100)).toFixed(2));
+      const total = parseFloat((venta.subtotal - (venta.descuento || 0) + iva).toFixed(2));
+      updates.iva   = iva;
+      updates.total = total;
+    }
+
     const ventaActualizada = await Venta.findOneAndUpdate(
       { _id: req.params.id, empresaId: req.empresaId },
-      { ...(estado && { estado }), ...(notas !== undefined && { notas }) },
+      updates,
       { new: true }
     );
-    if (!ventaActualizada) return res.status(404).json({ mensaje: 'Venta no encontrada' });
     res.json(ventaActualizada);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al actualizar venta', error: error.message });
