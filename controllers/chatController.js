@@ -55,9 +55,9 @@ const TOOL_DECLARATIONS = [
     name: 'buscar_clientes',
     description: 'Busca clientes por nombre o razón social. Usarlo antes de crear un presupuesto para obtener el ID del cliente.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        query: { type: 'STRING', description: 'Nombre o razón social del cliente a buscar' }
+        query: { type: 'string', description: 'Nombre o razón social del cliente a buscar' }
       },
       required: ['query']
     }
@@ -66,9 +66,9 @@ const TOOL_DECLARATIONS = [
     name: 'buscar_productos',
     description: 'Busca productos por nombre o SKU. Usarlo para obtener IDs y precios al armar un presupuesto.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        query: { type: 'STRING', description: 'Nombre o SKU del producto a buscar' }
+        query: { type: 'string', description: 'Nombre o SKU del producto a buscar' }
       },
       required: ['query']
     }
@@ -77,17 +77,17 @@ const TOOL_DECLARATIONS = [
     name: 'crear_cliente',
     description: 'Crea un nuevo cliente en el CRM. Solo llamar después de que el usuario confirme los datos.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        nombre:      { type: 'STRING', description: 'Nombre o nombre comercial del cliente (requerido)' },
-        email:       { type: 'STRING', description: 'Email de contacto' },
-        telefono:    { type: 'STRING', description: 'Teléfono de contacto' },
-        razonSocial: { type: 'STRING', description: 'Razón social o nombre legal de la empresa' },
-        cuit:        { type: 'STRING', description: 'CUIT sin guiones' },
-        direccion:   { type: 'STRING', description: 'Dirección postal' },
-        ciudad:      { type: 'STRING', description: 'Ciudad' },
-        provincia:   { type: 'STRING', description: 'Provincia' },
-        notas:       { type: 'STRING', description: 'Notas adicionales' }
+        nombre:      { type: 'string', description: 'Nombre o nombre comercial del cliente (requerido)' },
+        email:       { type: 'string', description: 'Email de contacto' },
+        telefono:    { type: 'string', description: 'Teléfono de contacto' },
+        razonSocial: { type: 'string', description: 'Razón social o nombre legal de la empresa' },
+        cuit:        { type: 'string', description: 'CUIT sin guiones' },
+        direccion:   { type: 'string', description: 'Dirección postal' },
+        ciudad:      { type: 'string', description: 'Ciudad' },
+        provincia:   { type: 'string', description: 'Provincia' },
+        notas:       { type: 'string', description: 'Notas adicionales' }
       },
       required: ['nombre']
     }
@@ -96,15 +96,15 @@ const TOOL_DECLARATIONS = [
     name: 'crear_proveedor',
     description: 'Crea un nuevo proveedor en el CRM. Solo llamar después de que el usuario confirme los datos.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        nombre:      { type: 'STRING', description: 'Nombre del proveedor (requerido)' },
-        email:       { type: 'STRING', description: 'Email de contacto' },
-        telefono:    { type: 'STRING', description: 'Teléfono de contacto' },
-        razonSocial: { type: 'STRING', description: 'Razón social' },
-        cuit:        { type: 'STRING', description: 'CUIT sin guiones' },
-        direccion:   { type: 'STRING', description: 'Dirección' },
-        notas:       { type: 'STRING', description: 'Notas adicionales' }
+        nombre:      { type: 'string', description: 'Nombre del proveedor (requerido)' },
+        email:       { type: 'string', description: 'Email de contacto' },
+        telefono:    { type: 'string', description: 'Teléfono de contacto' },
+        razonSocial: { type: 'string', description: 'Razón social' },
+        cuit:        { type: 'string', description: 'CUIT sin guiones' },
+        direccion:   { type: 'string', description: 'Dirección' },
+        notas:       { type: 'string', description: 'Notas adicionales' }
       },
       required: ['nombre']
     }
@@ -113,29 +113,29 @@ const TOOL_DECLARATIONS = [
     name: 'crear_presupuesto',
     description: 'Crea un nuevo presupuesto en estado borrador. Solo llamar después de que el usuario confirme. Los items deben incluir datos obtenidos de buscar_productos.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        clienteId:  { type: 'STRING', description: 'ID del cliente (obtenido de buscar_clientes)' },
+        clienteId:  { type: 'string', description: 'ID del cliente (obtenido de buscar_clientes)' },
         items: {
-          type: 'ARRAY',
+          type: 'array',
           description: 'Lista de productos del presupuesto',
           items: {
-            type: 'OBJECT',
+            type: 'object',
             properties: {
-              productoId: { type: 'STRING', description: 'ID del producto (obtenido de buscar_productos)' },
-              nombre:     { type: 'STRING', description: 'Nombre del producto (snapshot)' },
-              sku:        { type: 'STRING', description: 'SKU del producto (snapshot)' },
-              cantidad:   { type: 'NUMBER', description: 'Cantidad' },
-              precio:     { type: 'NUMBER', description: 'Precio unitario' },
-              descuento:  { type: 'NUMBER', description: 'Descuento en porcentaje (0-100), default 0' }
+              productoId: { type: 'string', description: 'ID del producto (obtenido de buscar_productos)' },
+              nombre:     { type: 'string', description: 'Nombre del producto (snapshot)' },
+              sku:        { type: 'string', description: 'SKU del producto (snapshot)' },
+              cantidad:   { type: 'number', description: 'Cantidad' },
+              precio:     { type: 'number', description: 'Precio unitario' },
+              descuento:  { type: 'number', description: 'Descuento en porcentaje (0-100), default 0' }
             },
             required: ['nombre', 'cantidad', 'precio']
           }
         },
-        validezDias: { type: 'NUMBER', description: 'Días de validez del presupuesto (default 30)' },
-        descuento:   { type: 'NUMBER', description: 'Descuento global en monto (default 0)' },
-        ivaPct:      { type: 'NUMBER', description: 'Porcentaje de IVA a aplicar (ej: 21, default 0)' },
-        notas:       { type: 'STRING', description: 'Notas o condiciones del presupuesto' }
+        validezDias: { type: 'number', description: 'Días de validez del presupuesto (default 30)' },
+        descuento:   { type: 'number', description: 'Descuento global en monto (default 0)' },
+        ivaPct:      { type: 'number', description: 'Porcentaje de IVA a aplicar (ej: 21, default 0)' },
+        notas:       { type: 'string', description: 'Notas o condiciones del presupuesto' }
       },
       required: ['clienteId', 'items']
     }
@@ -144,13 +144,13 @@ const TOOL_DECLARATIONS = [
     name: 'crear_tarea',
     description: 'Crea una nueva tarea o recordatorio. Solo llamar después de que el usuario confirme.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        titulo:          { type: 'STRING', description: 'Título de la tarea (requerido)' },
-        descripcion:     { type: 'STRING', description: 'Descripción detallada' },
-        tipo:            { type: 'STRING', description: 'Tipo: llamada, reunion, email, seguimiento, otro (default: otro)' },
-        prioridad:       { type: 'STRING', description: 'Prioridad: alta, media, baja (default: media)' },
-        fechaVencimiento:{ type: 'STRING', description: 'Fecha de vencimiento en formato ISO 8601 (ej: 2026-05-20)' }
+        titulo:          { type: 'string', description: 'Título de la tarea (requerido)' },
+        descripcion:     { type: 'string', description: 'Descripción detallada' },
+        tipo:            { type: 'string', description: 'Tipo: llamada, reunion, email, seguimiento, otro (default: otro)' },
+        prioridad:       { type: 'string', description: 'Prioridad: alta, media, baja (default: media)' },
+        fechaVencimiento:{ type: 'string', description: 'Fecha de vencimiento en formato ISO 8601 (ej: 2026-05-20)' }
       },
       required: ['titulo']
     }
