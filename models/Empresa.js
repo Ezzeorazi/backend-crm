@@ -35,6 +35,10 @@ const empresaSchema = new mongoose.Schema({
     enum:    ['free', 'starter', 'pro', 'enterprise'],
     default: 'free'
   },
+  chatStats: {
+    mes:  { type: String, default: '' },   // formato "YYYY-MM"
+    usos: { type: Number, default: 0 }
+  },
   estado: {
     type:    String,
     enum:    ['activo', 'inactivo', 'suspendido'],

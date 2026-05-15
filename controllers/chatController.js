@@ -4,6 +4,14 @@ const Producto    = require('../models/Product');
 const Presupuesto = require('../models/Presupuesto');
 const Tarea       = require('../models/Tarea');
 const Contador    = require('../models/Contador');
+const Empresa     = require('../models/Empresa');
+
+const PLAN_LIMITES = {
+  free:       30,
+  starter:    300,
+  pro:        Infinity,
+  enterprise: Infinity
+};
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -381,6 +389,37 @@ const enviarMensaje = async (req, res) => {
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
+    }
+
+    // ── Verificar límite de plan ──────────────────────────────────────────────
+    const empresa = await Empresa.findById(req.empresaId).select('plan chatStats').lean();
+    const plan    = empresa?.plan || 'free';
+    const limite  = PLAN_LIMITES[plan] ?? PLAN_LIMITES.free;
+
+    if (limite !== Infinity) {
+      const mesActual = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+      const stats     = empresa?.chatStats || { mes: '', usos: 0 };
+      const usosActuales = stats.mes === mesActual ? stats.usos : 0;
+
+      if (usosActuales >= limite) {
+        const planesSuperiores = { free: 'Starter', starter: 'Pro' };
+        const planSiguiente    = planesSuperiores[plan] || 'Pro';
+        return res.status(429).json({
+          mensaje: `Alcanzaste el límite de ${limite} mensajes/mes del plan ${plan.charAt(0).toUpperCase() + plan.slice(1)}. Actualizá al plan ${planSiguiente} para continuar usando a Harry sin límites.`,
+          limite:  true,
+          plan,
+          usos:    usosActuales,
+          maximo:  limite
+        });
+      }
+
+      // Incrementar contador (upsert atómico)
+      await Empresa.updateOne(
+        { _id: req.empresaId },
+        stats.mes === mesActual
+          ? { $inc: { 'chatStats.usos': 1 } }
+          : { $set: { 'chatStats.mes': mesActual, 'chatStats.usos': 1 } }
+      );
     }
 
     // Agregar contexto de página actual al system prompt
