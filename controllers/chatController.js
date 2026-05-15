@@ -1,11 +1,11 @@
-const { GoogleGenAI } = require('@google/genai');
+const Groq        = require('groq-sdk');
 const Contacto    = require('../models/Contacto');
 const Producto    = require('../models/Product');
 const Presupuesto = require('../models/Presupuesto');
 const Tarea       = require('../models/Tarea');
 const Contador    = require('../models/Contador');
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const SYSTEM_PROMPT = `Eres el asistente inteligente de Nimbus CRM. Ayudás a los usuarios a:
 1. Entender y usar el sistema CRM
@@ -273,49 +273,71 @@ const enviarMensaje = async (req, res) => {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
     }
 
-    // Historial: todos los mensajes menos el último
-    const history = messages.slice(0, -1).map(m => ({
-      role:  m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
+    // Construir historial en formato OpenAI/Groq
+    const groqMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...messages.map(m => ({
+        role:    m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content
+      }))
+    ];
+
+    // Convertir TOOL_DECLARATIONS al formato de Groq (OpenAI-compatible)
+    const groqTools = TOOL_DECLARATIONS.map(t => ({
+      type: 'function',
+      function: {
+        name:        t.name,
+        description: t.description,
+        parameters:  t.parameters
+      }
     }));
 
-    const lastMessage = messages[messages.length - 1].content;
-
-    const chat = ai.chats.create({
-      model: 'gemini-2.0-flash',
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-        temperature: 0.7,
-        maxOutputTokens: 1024
-      },
-      history
+    let completion = await groq.chat.completions.create({
+      model:       'llama-3.3-70b-versatile',
+      messages:    groqMessages,
+      tools:       groqTools,
+      tool_choice: 'auto',
+      temperature: 0.7,
+      max_tokens:  1024
     });
 
-    let response = await chat.sendMessage({ message: lastMessage });
-
-    // Loop para manejar function calling (máx 5 iteraciones)
+    // Loop para manejar tool calls (máx 5 iteraciones)
     for (let i = 0; i < 5; i++) {
-      const calls = response.functionCalls;
-      if (!calls || calls.length === 0) break;
+      const msg       = completion.choices[0].message;
+      const toolCalls = msg.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) break;
 
-      const functionResponseParts = [];
-      for (const call of calls) {
+      // Agregar respuesta del asistente con los tool_calls al historial
+      groqMessages.push(msg);
+
+      // Ejecutar cada herramienta y agregar resultados
+      for (const call of toolCalls) {
+        const args   = JSON.parse(call.function.arguments);
         const output = await ejecutarHerramienta(
-          call.name,
-          call.args,
+          call.function.name,
+          args,
           req.empresaId,
           req.usuario?.id
         );
-        functionResponseParts.push({
-          functionResponse: { name: call.name, response: output }
+        groqMessages.push({
+          role:         'tool',
+          tool_call_id: call.id,
+          content:      JSON.stringify(output)
         });
       }
 
-      response = await chat.sendMessage({ message: functionResponseParts });
+      completion = await groq.chat.completions.create({
+        model:       'llama-3.3-70b-versatile',
+        messages:    groqMessages,
+        tools:       groqTools,
+        tool_choice: 'auto',
+        temperature: 0.7,
+        max_tokens:  1024
+      });
     }
 
-    res.json({ content: response.text });
+    const text = completion.choices[0].message.content;
+    res.json({ content: text });
 
   } catch (error) {
     console.error('Error en chatController:', error);
