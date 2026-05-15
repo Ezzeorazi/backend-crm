@@ -273,12 +273,15 @@ const enviarMensaje = async (req, res) => {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
     }
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: SYSTEM_PROMPT,
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
-    });
+    const model = genAI.getGenerativeModel(
+      {
+        model: 'gemini-1.5-flash',
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+      },
+      { apiVersion: 'v1' }
+    );
 
     // Historial: todos los mensajes menos el último (que es el nuevo mensaje del usuario)
     const history = messages.slice(0, -1).map(m => ({
