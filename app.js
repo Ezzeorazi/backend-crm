@@ -76,6 +76,7 @@ app.use('/api/ordenes-pago',  require('./routes/ordenesPago'));
 app.use('/api/oportunidades', require('./routes/oportunidades'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/chat',  require('./routes/chat'));
+app.use('/api/admin', require('./routes/admin'));
 
 app.use(errorMiddleware);
 
