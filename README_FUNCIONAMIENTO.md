@@ -454,7 +454,7 @@ const authLimiter = rateLimit({
 
 Passwords: `bcrypt.hash(password, 10)` — factor 10.  
 JWT: `{ expiresIn: '8h' }` con secret largo.  
-CORS: acepta cualquier origin para compatibilidad con previews de Netlify.
+CORS: allowlist de orígenes configurada vía `CORS_ORIGIN` (ej. `https://nimbuscrm.netlify.app,http://localhost:5173`). Solo esos orígenes pueden hacer requests con credenciales.
 
 ---
 
@@ -472,17 +472,26 @@ CORS: acepta cualquier origin para compatibilidad con previews de Netlify.
 ## Tests
 
 ```bash
-npm test        # Jest + Supertest
-npm run test:coverage  # con cobertura
+npm test                          # 216 tests en 12 suites, ~14 s
+npx jest --no-coverage --forceExit
 ```
 
-Tests en `tests/`:
-- `auth.test.js` — login, token, roles
-- `presupuestos.test.js` — CRUD con empresa mock
-- `tareas.test.js` — estados, comentarios
-- `ordenes.test.js` — producción
+| Suite | Qué verifica |
+|---|---|
+| `authMiddleware.test.js` | Login, forgot-password, `verificarToken`, `permitirRoles` |
+| `tareaController.test.js` | CRUD + comentarios + roles + aislamiento multi-tenant |
+| `clienteController.test.js` | CRUD + importación bulk (límite 500 registros) |
+| `searchRoute.test.js` | Búsqueda global, prevención ReDoS, aislamiento por empresa |
+| `chatPublico.test.js` | Validación input, sanitización, límites de mensajes (500 chars, 6 msgs) |
+| `chatController.test.js` | Auth, límites de plan (free/starter/pro), prompt injection, truncado |
+| `security.test.js` | CORS allowlist, Helmet headers, ruta admin, inyección NoSQL |
+| `presupuestoController.test.js` | CRUD, PDF 404, permisos por rol |
+| `ordenProduccionController.test.js` | CRUD, transacción, roles, multi-tenant |
+| `productController.test.js` | CRUD, importación, validaciones express-validator |
+| `ventaController.test.js` | Transacción MongoDB (session/commit/abort), stock check, recálculo IVA |
+| `facturaController.test.js` | Derivación de venta, snapshot cliente, factura pagada, cascade delete de pagos |
 
-Cobertura actual: ~15%. Suficiente para CI pero mejorable.
+**Cobertura: ~70% del backend** — controllers principales, middleware, rutas críticas.
 
 ---
 

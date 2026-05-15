@@ -11,14 +11,23 @@ const errorMiddleware = require('./middleware/errorMiddleware');
 
 const app = express();
 
+// Allowlist explícita: CORS_ORIGIN puede ser una lista separada por comas
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 const corsOptions = {
   origin: function (origin, callback) {
-    // Si la variable CORS_ORIGIN tiene un '*', o está vacía, o coincide, o simplemente devolvemos el origin
-    // Esto permite que los deploy previews de Netlify funcionen sin problemas de CORS
-    callback(null, origin || '*');
+    // Permitir requests sin Origin (same-origin, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes('*')) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origen no permitido: ${origin}`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 

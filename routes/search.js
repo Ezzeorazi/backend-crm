@@ -5,6 +5,11 @@ const Cliente = require('../models/Cliente');
 const Product = require('../models/Product');
 const Venta = require('../models/Venta');
 
+// Escapa caracteres especiales de regex para prevenir ataques ReDoS
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 router.get('/', verificarToken, async (req, res) => {
   try {
     const { q } = req.query;
@@ -12,7 +17,7 @@ router.get('/', verificarToken, async (req, res) => {
       return res.json({ clientes: [], productos: [], ventas: [] });
     }
 
-    const regex = new RegExp(q, 'i');
+    const regex = new RegExp(escapeRegex(q.trim()), 'i');
     const empresaId = req.empresaId;
 
     // Ejecutamos las busquedas en paralelo

@@ -255,6 +255,15 @@ const TOOL_DECLARATIONS = [
   }
 ];
 
+const MAX_MSG_LEN = 2000;
+const MAX_MSGS    = 20;
+
+// Elimina saltos de línea y marcadores Markdown para prevenir prompt injection
+function sanitizarContexto(texto) {
+  if (typeof texto !== 'string') return '';
+  return texto.replace(/[\n\r<>{}[\]]/g, ' ').trim().slice(0, 100);
+}
+
 async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
   switch (nombre) {
     case 'buscar_clientes': {
@@ -519,6 +528,10 @@ const enviarMensaje = async (req, res) => {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
     }
 
+    if (messages.length > MAX_MSGS) {
+      return res.status(400).json({ mensaje: 'Demasiados mensajes en el historial' });
+    }
+
     // ── Verificar límite de plan ──────────────────────────────────────────────
     const empresa = await Empresa.findById(req.empresaId).select('plan chatStats').lean();
     const plan    = empresa?.plan || 'free';
@@ -553,14 +566,16 @@ const enviarMensaje = async (req, res) => {
     // Agregar contexto de página actual al system prompt
     let systemPrompt = BASE_SYSTEM_PROMPT;
     if (currentPage) {
-      systemPrompt += `\n\n## Contexto actual\nEl usuario está en la sección **${currentPage}** del CRM (ruta: ${currentPath || currentPage}). Tené esto en cuenta para dar respuestas más relevantes y proactivas.`;
+      const pageSafe = sanitizarContexto(currentPage);
+      const pathSafe = sanitizarContexto(currentPath);
+      systemPrompt += `\n\n## Contexto actual\nEl usuario está en la sección **${pageSafe}** del CRM (ruta: ${pathSafe || pageSafe}). Tené esto en cuenta para dar respuestas más relevantes y proactivas.`;
     }
 
     const groqMessages = [
       { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({
+      ...messages.slice(-MAX_MSGS).map(m => ({
         role:    m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content
+        content: String(m.content || '').slice(0, MAX_MSG_LEN)
       }))
     ];
 

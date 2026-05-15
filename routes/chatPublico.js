@@ -47,6 +47,8 @@ Tu objetivo principal es:
 - NO inventes funciones que no existen
 - Máximo 3 párrafos por respuesta`;
 
+const MAX_MSG_LEN_PUBLICO = 500;
+
 // POST /api/chat/publico
 router.post('/', limiterPublico, async (req, res) => {
   try {
@@ -58,7 +60,7 @@ router.post('/', limiterPublico, async (req, res) => {
     // Solo los últimos 6 mensajes para mantener contexto sin sobrecargar
     const historial = messages.slice(-6).map(m => ({
       role: m.role === 'user' ? 'user' : 'assistant',
-      content: String(m.content || ''),
+      content: String(m.content || '').slice(0, MAX_MSG_LEN_PUBLICO),
     }));
 
     const completion = await groq.chat.completions.create({

@@ -55,11 +55,17 @@ const eliminarCliente = async (req, res) => {
   }
 };
 
+const MAX_IMPORT = 500;
+
 const importarClientes = async (req, res) => {
   try {
     const filas = req.body;
     if (!Array.isArray(filas) || filas.length === 0) {
       return res.status(400).json({ mensaje: 'No se recibieron datos válidos' });
+    }
+
+    if (filas.length > MAX_IMPORT) {
+      return res.status(400).json({ mensaje: `Máximo ${MAX_IMPORT} registros por importación` });
     }
 
     const docs = filas.map(f => ({
