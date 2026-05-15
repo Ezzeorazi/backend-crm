@@ -423,12 +423,14 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
 
     case 'escalar_soporte': {
       const [empresa, usuario] = await Promise.all([
-        Empresa.findById(empresaId).select('nombre plan').lean(),
+        Empresa.findById(empresaId).select('nombre plan whatsapp telefono').lean(),
         User.findById(usuarioId).select('nombre email').lean()
       ]);
       const fecha    = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
       const urgencia = args.urgencia || 'media';
       const urgEmoji = { alta: '🔴', media: '🟡', baja: '🟢' }[urgencia] || '🟡';
+      const wa = empresa?.whatsapp || empresa?.telefono || '';
+      const waLimpio = wa.replace(/\D/g, '');
 
       await sendMail({
         to:      ADMIN_EMAIL,
@@ -438,7 +440,8 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
             <h2 style="color:#dc2626">🐛 Reporte de soporte — Nimbus CRM</h2>
             <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
               <tr><td style="padding:6px 0;color:#64748b;width:130px">Empresa</td><td><strong>${empresa?.nombre || 'N/A'}</strong></td></tr>
-              <tr><td style="padding:6px 0;color:#64748b">Usuario</td><td>${usuario?.nombre || 'N/A'} — ${usuario?.email || 'sin email'}</td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Usuario</td><td>${usuario?.nombre || 'N/A'} — <a href="mailto:${usuario?.email}">${usuario?.email || 'sin email'}</a></td></tr>
+              ${wa ? `<tr><td style="padding:6px 0;color:#64748b">WhatsApp</td><td>${wa}</td></tr>` : ''}
               <tr><td style="padding:6px 0;color:#64748b">Plan actual</td><td>${empresa?.plan || 'free'}</td></tr>
               <tr><td style="padding:6px 0;color:#64748b">Urgencia</td><td><strong>${urgencia.toUpperCase()}</strong></td></tr>
               <tr><td style="padding:6px 0;color:#64748b">Fecha</td><td>${fecha}</td></tr>
@@ -447,10 +450,14 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
               <p style="margin:0 0 8px;font-weight:600;color:#dc2626">Problema reportado:</p>
               <p style="margin:0;color:#1e293b;line-height:1.6">${args.descripcion}</p>
             </div>
-            ${args.pasos ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+            ${args.pasos ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:12px">
               <p style="margin:0 0 8px;font-weight:600;color:#475569">Contexto / pasos:</p>
               <p style="margin:0;color:#1e293b;line-height:1.6">${args.pasos}</p>
             </div>` : ''}
+            ${waLimpio ? `<a href="https://wa.me/${waLimpio}" target="_blank"
+              style="display:inline-block;background:#25D366;color:white;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;margin-top:4px">
+              📱 Contactar por WhatsApp
+            </a>` : ''}
           </div>`,
       }).catch(err => console.error('Error enviando email de soporte:', err.message));
 
@@ -459,10 +466,12 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
 
     case 'solicitar_upgrade_plan': {
       const [empresa, usuario] = await Promise.all([
-        Empresa.findById(empresaId).select('nombre plan').lean(),
+        Empresa.findById(empresaId).select('nombre plan whatsapp telefono').lean(),
         User.findById(usuarioId).select('nombre email').lean()
       ]);
       const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+      const wa = empresa?.whatsapp || empresa?.telefono || '';
+      const waLimpio = wa.replace(/\D/g, '');
 
       await sendMail({
         to:      ADMIN_EMAIL,
@@ -472,7 +481,8 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
             <h2 style="color:#4f46e5">⬆️ Solicitud de upgrade de plan — Nimbus CRM</h2>
             <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
               <tr><td style="padding:6px 0;color:#64748b;width:130px">Empresa</td><td><strong>${empresa?.nombre || 'N/A'}</strong></td></tr>
-              <tr><td style="padding:6px 0;color:#64748b">Usuario</td><td>${usuario?.nombre || 'N/A'} — ${usuario?.email || 'sin email'}</td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Usuario</td><td>${usuario?.nombre || 'N/A'} — <a href="mailto:${usuario?.email}">${usuario?.email || 'sin email'}</a></td></tr>
+              ${wa ? `<tr><td style="padding:6px 0;color:#64748b">WhatsApp</td><td>${wa}</td></tr>` : ''}
               <tr><td style="padding:6px 0;color:#64748b">Plan actual</td><td>${empresa?.plan || 'free'}</td></tr>
               <tr><td style="padding:6px 0;color:#64748b">Plan solicitado</td><td><strong style="color:#4f46e5">${(args.plan_deseado || '').toUpperCase()}</strong></td></tr>
               <tr><td style="padding:6px 0;color:#64748b">Fecha</td><td>${fecha}</td></tr>
@@ -481,8 +491,14 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
               <p style="margin:0 0 8px;font-weight:600;color:#0369a1">Motivo / qué necesita:</p>
               <p style="margin:0;color:#1e293b;line-height:1.6">${args.motivo}</p>
             </div>` : ''}
+            <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+              ${waLimpio ? `<a href="https://wa.me/${waLimpio}" target="_blank"
+                style="display:inline-block;background:#25D366;color:white;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px">
+                📱 Contactar por WhatsApp
+              </a>` : ''}
+            </div>
             <p style="color:#64748b;font-size:12px;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
-              Para activar: <code>PATCH /api/admin/empresa/${empresaId}/plan</code> con body <code>{"plan":"${args.plan_deseado}"}</code>
+              Para activar el plan: <code>PATCH /api/admin/empresa/${empresaId}/plan</code> · body: <code>{"plan":"${args.plan_deseado}"}</code>
             </p>
           </div>`,
       }).catch(err => console.error('Error enviando email de upgrade:', err.message));

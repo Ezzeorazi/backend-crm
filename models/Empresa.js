@@ -23,6 +23,7 @@ const empresaSchema = new mongoose.Schema({
   cuit:         { type: String, trim: true }, // campo legacy — usar identificadorFiscal
   email:        { type: String, trim: true, lowercase: true },
   telefono:     String,
+  whatsapp:     { type: String, trim: true },
   direccion:    String,
   ciudad:       String,
   provincia:    String,

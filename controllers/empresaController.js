@@ -20,14 +20,22 @@ const crearEmpresaDemo = async (req, res) => {
     nombre, plan, colorPrimario,
     tipoOrganizacion, pais, identificadorFiscal, tipoIdentificadorFiscal,
     moneda, ivaDefault,
-    nombreUsuario, emailUsuario, contraseña,
+    nombreUsuario, emailUsuario, contraseña, whatsapp,
   } = req.body;
+
+  // Validaciones requeridas
+  if (!whatsapp || !String(whatsapp).trim()) {
+    return res.status(400).json({ mensaje: 'El número de WhatsApp es obligatorio para poder contactarte en caso de urgencia.' });
+  }
 
   // Verificar email duplicado antes de crear nada
   const emailExistente = await User.findOne({ email: emailUsuario.toLowerCase().trim() });
   if (emailExistente) {
     return res.status(409).json({ mensaje: 'Ya existe una cuenta con ese correo electrónico.' });
   }
+
+  // Número limpio para link de WhatsApp (solo dígitos)
+  const whatsappLimpio = String(whatsapp).replace(/\D/g, '');
 
   let empresaGuardada = null;
   try {
@@ -39,6 +47,8 @@ const crearEmpresaDemo = async (req, res) => {
       pais: pais || 'Argentina',
       identificadorFiscal,
       tipoIdentificadorFiscal,
+      telefono: whatsapp,
+      whatsapp,
       configuracion: {
         moneda:     moneda     || 'ARS',
         ivaDefault: ivaDefault != null ? Number(ivaDefault) : 21,
@@ -71,17 +81,24 @@ const crearEmpresaDemo = async (req, res) => {
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
     sendMail({
       to: process.env.ADMIN_NOTIFY_EMAIL,
-      subject: 'Nueva cuenta creada — Nimbus CRM',
+      subject: '🆕 Nueva cuenta — Nimbus CRM',
       html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-          <h2 style="color:#4f46e5">Nueva cuenta registrada</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+          <h2 style="color:#4f46e5">Nueva cuenta registrada 🎉</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
             <tr><td style="padding:6px 0;color:#64748b;width:140px">Empresa</td><td><strong>${nombre}</strong></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Tipo</td><td>${tipoOrganizacion === 'autonomo' ? 'Autónomo / Freelancer' : 'Empresa / PYME'}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">País</td><td>${pais || 'Argentina'}</td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Plan</td><td>${plan || 'free'}</td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Admin</td><td>${nombreUsuario}</td></tr>
-            <tr><td style="padding:6px 0;color:#64748b">Email</td><td>${emailUsuario}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Email</td><td><a href="mailto:${emailUsuario}">${emailUsuario}</a></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">WhatsApp</td><td>${whatsapp}</td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Fecha</td><td>${fecha}</td></tr>
           </table>
+          <a href="https://wa.me/${whatsappLimpio}" target="_blank"
+            style="display:inline-block;background:#25D366;color:white;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px">
+            📱 Abrir chat de WhatsApp
+          </a>
         </div>
       `,
     }).catch(err => console.error('Error al enviar notificación de nueva cuenta:', err.message));
