@@ -5,6 +5,10 @@ const Presupuesto = require('../models/Presupuesto');
 const Tarea       = require('../models/Tarea');
 const Contador    = require('../models/Contador');
 const Empresa     = require('../models/Empresa');
+const User        = require('../models/User');
+const { sendMail } = require('../utils/mailer');
+
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFY_EMAIL || 'ezequiel.orazi90@gmail.com';
 
 const PLAN_LIMITES = {
   free:       30,
@@ -49,6 +53,20 @@ Crear cliente → Crear presupuesto → Cliente acepta → Registrar venta → E
 - Sé conciso y amigable, usá markdown para formatear (negritas, listas)
 - Cuando crees algo exitosamente, incluí un link de navegación al final: [Ver en Clientes](/dashboard/clientes), [Ver en Productos](/dashboard/productos), etc.
 - Si te preguntan cómo hacer algo en el CRM, explicalo en 2-3 pasos simples
+
+## Soporte y escalación de bugs
+Si el usuario reporta un bug, un error persistente, algo roto en el sistema, o un problema que Harry no pudo resolver después de intentarlo:
+1. Intentá entender bien el problema (hacé una pregunta si falta contexto)
+2. Si no podés resolverlo, usá la herramienta \`escalar_soporte\` para notificar al equipo técnico
+3. Informale al usuario que ya se envió el reporte y que lo contactarán a la brevedad
+IMPORTANTE: usá \`escalar_soporte\` para bugs reales del sistema, NO para preguntas de uso o dudas normales.
+
+## Cambio o upgrade de plan
+Si el usuario pregunta cómo subir de plan, menciona que se quedó sin mensajes de Harry, o quiere las funciones Pro/Enterprise:
+1. Preguntale brevemente a qué plan quiere pasar y por qué lo necesita (si no lo dijo)
+2. Confirmá que vas a enviar la solicitud al equipo
+3. Usá la herramienta \`solicitar_upgrade_plan\` para notificar al equipo con el pedido
+4. Informale que recibirá contacto con los detalles para concretar el upgrade
 
 ## Migración desde Excel
 Si el usuario pregunta cómo migrar desde Excel o viene de otro sistema, guialo así:
@@ -208,6 +226,31 @@ const TOOL_DECLARATIONS = [
         fechaVencimiento: { type: 'string', description: 'Fecha de vencimiento en formato ISO 8601 (ej: 2026-05-20)' }
       },
       required: ['titulo']
+    }
+  },
+  {
+    name: 'escalar_soporte',
+    description: 'Escala un bug o problema técnico al equipo de soporte (Ezequiel). Usar cuando el usuario reporta un error real del sistema, algo que no funciona, o cuando Harry no puede resolver el problema después de intentarlo. NO usar para preguntas de uso normales.',
+    parameters: {
+      type: 'object',
+      properties: {
+        descripcion: { type: 'string', description: 'Descripción clara del problema que reporta el usuario (requerido)' },
+        pasos:       { type: 'string', description: 'Pasos para reproducir el error o contexto adicional que el usuario mencionó' },
+        urgencia:    { type: 'string', description: 'Nivel de urgencia: alta (sistema caído), media (bug que afecta trabajo), baja (inconveniente menor)' }
+      },
+      required: ['descripcion']
+    }
+  },
+  {
+    name: 'solicitar_upgrade_plan',
+    description: 'Envía una solicitud de cambio de plan al equipo. Usar cuando el usuario pide subir de plan, menciona que necesita más mensajes con Harry, o quiere acceder a funciones Pro/Enterprise.',
+    parameters: {
+      type: 'object',
+      properties: {
+        plan_deseado: { type: 'string', description: 'Plan al que quiere cambiar: starter, pro, enterprise (requerido)' },
+        motivo:       { type: 'string', description: 'Por qué necesita el upgrade o qué funcionalidad le falta' }
+      },
+      required: ['plan_deseado']
     }
   }
 ];
@@ -376,6 +419,75 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
       });
       const guardada = await tarea.save();
       return { exito: true, id: guardada._id.toString(), titulo: guardada.titulo, path: '/dashboard/tareas' };
+    }
+
+    case 'escalar_soporte': {
+      const [empresa, usuario] = await Promise.all([
+        Empresa.findById(empresaId).select('nombre plan').lean(),
+        User.findById(usuarioId).select('nombre email').lean()
+      ]);
+      const fecha    = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+      const urgencia = args.urgencia || 'media';
+      const urgEmoji = { alta: '🔴', media: '🟡', baja: '🟢' }[urgencia] || '🟡';
+
+      await sendMail({
+        to:      ADMIN_EMAIL,
+        subject: `${urgEmoji} Soporte requerido — ${empresa?.nombre || 'Empresa'} — Nimbus CRM`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+            <h2 style="color:#dc2626">🐛 Reporte de soporte — Nimbus CRM</h2>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
+              <tr><td style="padding:6px 0;color:#64748b;width:130px">Empresa</td><td><strong>${empresa?.nombre || 'N/A'}</strong></td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Usuario</td><td>${usuario?.nombre || 'N/A'} — ${usuario?.email || 'sin email'}</td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Plan actual</td><td>${empresa?.plan || 'free'}</td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Urgencia</td><td><strong>${urgencia.toUpperCase()}</strong></td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Fecha</td><td>${fecha}</td></tr>
+            </table>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px;margin-bottom:12px">
+              <p style="margin:0 0 8px;font-weight:600;color:#dc2626">Problema reportado:</p>
+              <p style="margin:0;color:#1e293b;line-height:1.6">${args.descripcion}</p>
+            </div>
+            ${args.pasos ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+              <p style="margin:0 0 8px;font-weight:600;color:#475569">Contexto / pasos:</p>
+              <p style="margin:0;color:#1e293b;line-height:1.6">${args.pasos}</p>
+            </div>` : ''}
+          </div>`,
+      }).catch(err => console.error('Error enviando email de soporte:', err.message));
+
+      return { exito: true, mensaje: 'Reporte enviado al equipo de soporte.' };
+    }
+
+    case 'solicitar_upgrade_plan': {
+      const [empresa, usuario] = await Promise.all([
+        Empresa.findById(empresaId).select('nombre plan').lean(),
+        User.findById(usuarioId).select('nombre email').lean()
+      ]);
+      const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+
+      await sendMail({
+        to:      ADMIN_EMAIL,
+        subject: `⬆️ Solicitud de upgrade — ${empresa?.nombre || 'Empresa'} → Plan ${(args.plan_deseado || '').toUpperCase()} — Nimbus CRM`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+            <h2 style="color:#4f46e5">⬆️ Solicitud de upgrade de plan — Nimbus CRM</h2>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
+              <tr><td style="padding:6px 0;color:#64748b;width:130px">Empresa</td><td><strong>${empresa?.nombre || 'N/A'}</strong></td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Usuario</td><td>${usuario?.nombre || 'N/A'} — ${usuario?.email || 'sin email'}</td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Plan actual</td><td>${empresa?.plan || 'free'}</td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Plan solicitado</td><td><strong style="color:#4f46e5">${(args.plan_deseado || '').toUpperCase()}</strong></td></tr>
+              <tr><td style="padding:6px 0;color:#64748b">Fecha</td><td>${fecha}</td></tr>
+            </table>
+            ${args.motivo ? `<div style="background:#f0f9ff;border:1px solid #7dd3fc;border-radius:8px;padding:16px;margin-bottom:12px">
+              <p style="margin:0 0 8px;font-weight:600;color:#0369a1">Motivo / qué necesita:</p>
+              <p style="margin:0;color:#1e293b;line-height:1.6">${args.motivo}</p>
+            </div>` : ''}
+            <p style="color:#64748b;font-size:12px;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
+              Para activar: <code>PATCH /api/admin/empresa/${empresaId}/plan</code> con body <code>{"plan":"${args.plan_deseado}"}</code>
+            </p>
+          </div>`,
+      }).catch(err => console.error('Error enviando email de upgrade:', err.message));
+
+      return { exito: true, mensaje: 'Solicitud de upgrade enviada al equipo.' };
     }
 
     default:
