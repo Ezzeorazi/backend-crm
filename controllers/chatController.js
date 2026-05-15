@@ -7,31 +7,22 @@ const Contador    = require('../models/Contador');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const SYSTEM_PROMPT = `Eres el asistente inteligente de Nimbus CRM. Ayudás a los usuarios a:
+const BASE_SYSTEM_PROMPT = `Eres el asistente inteligente de Nimbus CRM. Ayudás a los usuarios a:
 1. Entender y usar el sistema CRM
-2. Crear registros como clientes, proveedores, presupuestos y tareas usando las herramientas disponibles
+2. Crear y buscar registros usando las herramientas disponibles
 
 ## Entidades del sistema
 
 **Clientes y Proveedores** (Contactos)
-- Clientes: empresas o personas que compran productos/servicios
-- Proveedores: empresas que suministran productos
 - Campos: nombre (requerido), email, telefono, razonSocial, cuit, direccion, ciudad, provincia
 
 **Productos**
-- Catálogo con nombre, SKU, precio, stock e impuesto (% IVA, default 21%)
+- Catálogo con nombre (requerido), SKU (requerido, se convierte a mayúsculas), precio (requerido), stock, costo, impuesto (% IVA, default 21), unidad, categoria, descripcion
 
 **Presupuestos**
 - Cotizaciones para clientes con productos/servicios
 - Estados: borrador → enviado → aceptado / rechazado / vencido
 - Para crear uno: necesitás el cliente y los productos con precios y cantidades
-
-**Ventas**
-- Registro de ventas cerradas, generalmente desde un presupuesto aceptado
-
-**Facturas**
-- Documentos fiscales ligados a ventas (tipos A, B, C, X)
-- Estados: pendiente → pagada / parcial / anulada
 
 **Tareas**
 - Actividades y seguimientos
@@ -44,10 +35,11 @@ Crear cliente → Crear presupuesto → Cliente acepta → Registrar venta → E
 ## Instrucciones
 - Siempre respondé en español rioplatense (vos, no usted)
 - Antes de crear cualquier registro, mostrá los datos que vas a usar y pedí confirmación
-- Si el usuario responde "sí", "dale", "confirmado", "ok" u similar, procedé a crear
+- Si el usuario responde "sí", "dale", "confirmado", "ok", "sí dale", "confirmar" o similar, procedé a crear
 - Para crear un presupuesto: primero buscá al cliente y los productos, luego mostrá el resumen y pedí confirmación
-- Si no encontrás exactamente lo que el usuario pide, mostrá las opciones disponibles
-- Sé conciso y amigable
+- Si no encontrás exactamente lo que el usuario pide, mostrá las opciones disponibles y preguntá
+- Sé conciso y amigable, usá markdown para formatear (negritas, listas)
+- Cuando crees algo exitosamente, incluí un link de navegación al final: [Ver en Clientes](/dashboard/clientes), [Ver en Productos](/dashboard/productos), etc.
 - Si te preguntan cómo hacer algo en el CRM, explicalo en 2-3 pasos simples`;
 
 const TOOL_DECLARATIONS = [
@@ -71,6 +63,27 @@ const TOOL_DECLARATIONS = [
         query: { type: 'string', description: 'Nombre o SKU del producto a buscar' }
       },
       required: ['query']
+    }
+  },
+  {
+    name: 'buscar_presupuestos',
+    description: 'Busca presupuestos por nombre de cliente o estado.',
+    parameters: {
+      type: 'object',
+      properties: {
+        clienteNombre: { type: 'string', description: 'Nombre del cliente para filtrar presupuestos' },
+        estado: { type: 'string', description: 'Estado: borrador, enviado, aceptado, rechazado, vencido' }
+      }
+    }
+  },
+  {
+    name: 'listar_tareas_pendientes',
+    description: 'Lista las tareas pendientes o próximas a vencer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limite: { type: 'number', description: 'Cantidad máxima de tareas a mostrar (default 5)' }
+      }
     }
   },
   {
@@ -110,6 +123,25 @@ const TOOL_DECLARATIONS = [
     }
   },
   {
+    name: 'crear_producto',
+    description: 'Crea un nuevo producto en el catálogo. Solo llamar después de que el usuario confirme los datos.',
+    parameters: {
+      type: 'object',
+      properties: {
+        nombre:      { type: 'string', description: 'Nombre del producto (requerido)' },
+        sku:         { type: 'string', description: 'Código SKU único (requerido, se convierte a mayúsculas)' },
+        precio:      { type: 'number', description: 'Precio de venta (requerido)' },
+        stock:       { type: 'number', description: 'Stock inicial (default 0)' },
+        costo:       { type: 'number', description: 'Costo del producto' },
+        impuesto:    { type: 'number', description: 'Porcentaje de IVA (default 21)' },
+        unidad:      { type: 'string', description: 'Unidad de medida: unidad, kg, litro, m2, hora, etc. (default: unidad)' },
+        categoria:   { type: 'string', description: 'Categoría del producto' },
+        descripcion: { type: 'string', description: 'Descripción del producto' }
+      },
+      required: ['nombre', 'sku', 'precio']
+    }
+  },
+  {
     name: 'crear_presupuesto',
     description: 'Crea un nuevo presupuesto en estado borrador. Solo llamar después de que el usuario confirme. Los items deben incluir datos obtenidos de buscar_productos.',
     parameters: {
@@ -146,11 +178,11 @@ const TOOL_DECLARATIONS = [
     parameters: {
       type: 'object',
       properties: {
-        titulo:          { type: 'string', description: 'Título de la tarea (requerido)' },
-        descripcion:     { type: 'string', description: 'Descripción detallada' },
-        tipo:            { type: 'string', description: 'Tipo: llamada, reunion, email, seguimiento, otro (default: otro)' },
-        prioridad:       { type: 'string', description: 'Prioridad: alta, media, baja (default: media)' },
-        fechaVencimiento:{ type: 'string', description: 'Fecha de vencimiento en formato ISO 8601 (ej: 2026-05-20)' }
+        titulo:           { type: 'string', description: 'Título de la tarea (requerido)' },
+        descripcion:      { type: 'string', description: 'Descripción detallada' },
+        tipo:             { type: 'string', description: 'Tipo: llamada, reunion, email, seguimiento, otro (default: otro)' },
+        prioridad:        { type: 'string', description: 'Prioridad: alta, media, baja (default: media)' },
+        fechaVencimiento: { type: 'string', description: 'Fecha de vencimiento en formato ISO 8601 (ej: 2026-05-20)' }
       },
       required: ['titulo']
     }
@@ -187,16 +219,79 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
         : { productos: [], mensaje: `No se encontraron productos con "${args.query}"` };
     }
 
+    case 'buscar_presupuestos': {
+      const filtro = { empresaId };
+      if (args.estado) filtro.estado = args.estado;
+      if (args.clienteNombre) {
+        const clientes = await Contacto.find({
+          empresaId,
+          nombre: { $regex: args.clienteNombre, $options: 'i' }
+        }).select('_id').lean();
+        if (clientes.length > 0) {
+          filtro.cliente = { $in: clientes.map(c => c._id) };
+        }
+      }
+      const presupuestos = await Presupuesto.find(filtro)
+        .populate('cliente', 'nombre')
+        .select('numero estado total vencimiento cliente')
+        .sort({ createdAt: -1 })
+        .limit(args.limite || 5)
+        .lean();
+      return presupuestos.length > 0
+        ? { presupuestos: presupuestos.map(p => ({
+            id: p._id,
+            numero: p.numero,
+            cliente: p.cliente?.nombre || 'Sin cliente',
+            estado: p.estado,
+            total: p.total,
+            vencimiento: p.vencimiento
+          })) }
+        : { presupuestos: [], mensaje: 'No se encontraron presupuestos con esos filtros' };
+    }
+
+    case 'listar_tareas_pendientes': {
+      const tareas = await Tarea.find({
+        empresaId,
+        estado: 'pendiente'
+      })
+        .select('titulo tipo prioridad fechaVencimiento estado')
+        .sort({ fechaVencimiento: 1, prioridad: -1 })
+        .limit(args.limite || 5)
+        .lean();
+      return tareas.length > 0
+        ? { tareas }
+        : { tareas: [], mensaje: 'No tenés tareas pendientes' };
+    }
+
     case 'crear_cliente': {
       const cliente = new Contacto({ ...args, tipo: ['cliente'], empresaId });
       const guardado = await cliente.save();
-      return { exito: true, id: guardado._id.toString(), nombre: guardado.nombre };
+      return { exito: true, id: guardado._id.toString(), nombre: guardado.nombre, path: '/dashboard/clientes' };
     }
 
     case 'crear_proveedor': {
       const proveedor = new Contacto({ ...args, tipo: ['proveedor'], empresaId });
       const guardado = await proveedor.save();
-      return { exito: true, id: guardado._id.toString(), nombre: guardado.nombre };
+      return { exito: true, id: guardado._id.toString(), nombre: guardado.nombre, path: '/dashboard/proveedores' };
+    }
+
+    case 'crear_producto': {
+      const { nombre, sku, precio, stock = 0, costo, impuesto = 21, unidad = 'unidad', categoria, descripcion } = args;
+      const producto = new Producto({
+        empresaId,
+        nombre,
+        sku: sku.toUpperCase(),
+        precio,
+        stock,
+        costo,
+        impuesto,
+        unidad,
+        categoria,
+        descripcion,
+        activo: true
+      });
+      const guardado = await producto.save();
+      return { exito: true, id: guardado._id.toString(), nombre: guardado.nombre, sku: guardado.sku, path: '/dashboard/productos' };
     }
 
     case 'crear_presupuesto': {
@@ -215,9 +310,9 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
         };
       });
 
-      const subtotal   = parseFloat(productosConSubtotal.reduce((s, i) => s + i.subtotal, 0).toFixed(2));
-      const ivaCalc    = parseFloat((subtotal * (ivaPct / 100)).toFixed(2));
-      const total      = parseFloat((subtotal - descuento + ivaCalc).toFixed(2));
+      const subtotal    = parseFloat(productosConSubtotal.reduce((s, i) => s + i.subtotal, 0).toFixed(2));
+      const ivaCalc     = parseFloat((subtotal * (ivaPct / 100)).toFixed(2));
+      const total       = parseFloat((subtotal - descuento + ivaCalc).toFixed(2));
       const vencimiento = new Date();
       vencimiento.setDate(vencimiento.getDate() + validezDias);
 
@@ -241,7 +336,7 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
       });
 
       const guardado = await presupuesto.save();
-      return { exito: true, id: guardado._id.toString(), numero: guardado.numero, total: guardado.total };
+      return { exito: true, id: guardado._id.toString(), numero: guardado.numero, total: guardado.total, path: '/dashboard/presupuestos' };
     }
 
     case 'crear_tarea': {
@@ -257,7 +352,7 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
         estado:           'pendiente'
       });
       const guardada = await tarea.save();
-      return { exito: true, id: guardada._id.toString(), titulo: guardada.titulo };
+      return { exito: true, id: guardada._id.toString(), titulo: guardada.titulo, path: '/dashboard/tareas' };
     }
 
     default:
@@ -267,22 +362,26 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
 
 const enviarMensaje = async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, currentPage, currentPath } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
     }
 
-    // Construir historial en formato OpenAI/Groq
+    // Agregar contexto de página actual al system prompt
+    let systemPrompt = BASE_SYSTEM_PROMPT;
+    if (currentPage) {
+      systemPrompt += `\n\n## Contexto actual\nEl usuario está en la sección **${currentPage}** del CRM (ruta: ${currentPath || currentPage}). Tené esto en cuenta para dar respuestas más relevantes y proactivas.`;
+    }
+
     const groqMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       ...messages.map(m => ({
         role:    m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content
       }))
     ];
 
-    // Convertir TOOL_DECLARATIONS al formato de Groq (OpenAI-compatible)
     const groqTools = TOOL_DECLARATIONS.map(t => ({
       type: 'function',
       function: {
@@ -297,7 +396,7 @@ const enviarMensaje = async (req, res) => {
       messages:    groqMessages,
       tools:       groqTools,
       tool_choice: 'auto',
-      temperature: 0.7,
+      temperature: 0.6,
       max_tokens:  1024
     });
 
@@ -307,10 +406,8 @@ const enviarMensaje = async (req, res) => {
       const toolCalls = msg.tool_calls;
       if (!toolCalls || toolCalls.length === 0) break;
 
-      // Agregar respuesta del asistente con los tool_calls al historial
       groqMessages.push(msg);
 
-      // Ejecutar cada herramienta y agregar resultados
       for (const call of toolCalls) {
         const args   = JSON.parse(call.function.arguments);
         const output = await ejecutarHerramienta(
@@ -331,7 +428,7 @@ const enviarMensaje = async (req, res) => {
         messages:    groqMessages,
         tools:       groqTools,
         tool_choice: 'auto',
-        temperature: 0.7,
+        temperature: 0.6,
         max_tokens:  1024
       });
     }
