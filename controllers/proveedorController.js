@@ -54,4 +54,32 @@ const eliminarProveedor = async (req, res) => {
   }
 };
 
-module.exports = { obtenerProveedores, crearProveedor, obtenerProveedor, actualizarProveedor, eliminarProveedor };
+const importarProveedores = async (req, res) => {
+  try {
+    const filas = req.body;
+    if (!Array.isArray(filas) || filas.length === 0) {
+      return res.status(400).json({ mensaje: 'No se recibieron datos válidos' });
+    }
+
+    const docs = filas.map(f => ({
+      nombre:      String(f.nombre || '').trim(),
+      email:       f.email ? String(f.email).trim() : undefined,
+      telefono:    f.telefono ? String(f.telefono).trim() : undefined,
+      razonSocial: f.razonSocial ? String(f.razonSocial).trim() : undefined,
+      cuit:        f.cuit ? String(f.cuit).trim() : undefined,
+      direccion:   f.direccion ? String(f.direccion).trim() : undefined,
+      ciudad:      f.ciudad ? String(f.ciudad).trim() : undefined,
+      notas:       f.notas ? String(f.notas).trim() : undefined,
+      tipo:        ['proveedor'],
+      empresaId:   req.empresaId
+    })).filter(d => d.nombre);
+
+    const resultado = await Contacto.insertMany(docs, { ordered: false });
+    res.status(201).json({ insertados: resultado.length });
+  } catch (error) {
+    const insertados = error.result?.nInserted ?? 0;
+    res.status(207).json({ insertados, mensaje: 'Algunos registros no se importaron', error: error.message });
+  }
+};
+
+module.exports = { obtenerProveedores, crearProveedor, obtenerProveedor, actualizarProveedor, eliminarProveedor, importarProveedores };

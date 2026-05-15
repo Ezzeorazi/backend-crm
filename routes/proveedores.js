@@ -6,7 +6,8 @@ const {
   crearProveedor,
   obtenerProveedor,
   actualizarProveedor,
-  eliminarProveedor
+  eliminarProveedor,
+  importarProveedores
 } = require('../controllers/proveedorController');
 
 const { verificarToken } = require('../middleware/authMiddleware');
@@ -17,5 +18,6 @@ router.post('/', verificarToken, crearProveedor);
 router.get('/:id', verificarToken, obtenerProveedor);
 router.put('/:id', verificarToken, actualizarProveedor);
 router.delete('/:id', verificarToken, eliminarProveedor);
+router.post('/importar', verificarToken, importarProveedores);
 
 module.exports = router;

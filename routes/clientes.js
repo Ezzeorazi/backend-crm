@@ -8,7 +8,8 @@ const {
   crearCliente,
   obtenerCliente,
   actualizarCliente,
-  eliminarCliente
+  eliminarCliente,
+  importarClientes
 } = require('../controllers/clienteController');
 
 router.get('/',    verificarToken, obtenerClientes);
@@ -38,5 +39,6 @@ router.put(
 );
 
 router.delete('/:id', verificarToken, eliminarCliente);
+router.post('/importar', verificarToken, importarClientes);
 
 module.exports = router;
