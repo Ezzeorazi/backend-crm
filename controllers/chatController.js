@@ -1,11 +1,11 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 const Contacto    = require('../models/Contacto');
 const Producto    = require('../models/Product');
 const Presupuesto = require('../models/Presupuesto');
 const Tarea       = require('../models/Tarea');
 const Contador    = require('../models/Contador');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `Eres el asistente inteligente de Nimbus CRM. Ayudás a los usuarios a:
 1. Entender y usar el sistema CRM
@@ -273,33 +273,33 @@ const enviarMensaje = async (req, res) => {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
     }
 
-    const model = genAI.getGenerativeModel(
-      {
-        model: 'gemini-1.5-flash',
-        systemInstruction: SYSTEM_PROMPT,
-        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
-      },
-      { apiVersion: 'v1' }
-    );
-
-    // Historial: todos los mensajes menos el último (que es el nuevo mensaje del usuario)
+    // Historial: todos los mensajes menos el último
     const history = messages.slice(0, -1).map(m => ({
       role:  m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
 
     const lastMessage = messages[messages.length - 1].content;
-    const chat = model.startChat({ history });
 
-    let result = await chat.sendMessage(lastMessage);
+    const chat = ai.chats.create({
+      model: 'gemini-2.0-flash',
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+        temperature: 0.7,
+        maxOutputTokens: 1024
+      },
+      history
+    });
+
+    let response = await chat.sendMessage({ message: lastMessage });
 
     // Loop para manejar function calling (máx 5 iteraciones)
     for (let i = 0; i < 5; i++) {
-      const calls = result.response.functionCalls();
+      const calls = response.functionCalls;
       if (!calls || calls.length === 0) break;
 
-      const functionResponses = [];
+      const functionResponseParts = [];
       for (const call of calls) {
         const output = await ejecutarHerramienta(
           call.name,
@@ -307,16 +307,15 @@ const enviarMensaje = async (req, res) => {
           req.empresaId,
           req.usuario?.id
         );
-        functionResponses.push({
+        functionResponseParts.push({
           functionResponse: { name: call.name, response: output }
         });
       }
 
-      result = await chat.sendMessage(functionResponses);
+      response = await chat.sendMessage({ message: functionResponseParts });
     }
 
-    const text = result.response.text();
-    res.json({ content: text });
+    res.json({ content: response.text });
 
   } catch (error) {
     console.error('Error en chatController:', error);
