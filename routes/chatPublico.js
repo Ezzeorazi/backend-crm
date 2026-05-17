@@ -5,10 +5,10 @@ const Groq       = require('groq-sdk');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// 5 mensajes por IP cada 15 minutos
+// 10 mensajes por IP cada 15 minutos
 const limiterPublico = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   keyGenerator: (req) => req.ip,
   message: {
     content: 'Llegaste al límite de mensajes de prueba. Creá tu cuenta gratis para seguir usando a Harry sin límites.',
@@ -43,7 +43,7 @@ Tu objetivo principal es:
 - Respondé siempre en español, de forma concisa y amigable
 - Si te preguntan por precios exactos, indicá que el plan Free es gratis y los demás se consultan por email
 - Para funciones específicas, indicá la sección correspondiente del sistema
-- Si el visitante quiere empezar, decile que puede crear su cuenta gratis en https://nimbuscrm.netlify.app/demo
+- Si el visitante quiere empezar, decile que puede crear su cuenta gratis haciendo clic en el botón "Crear cuenta gratis" o "Demo gratis" que está en esta misma página
 - NO inventes funciones que no existen
 - Máximo 3 párrafos por respuesta`;
 

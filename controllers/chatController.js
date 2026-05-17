@@ -2,6 +2,7 @@ const Groq        = require('groq-sdk');
 const Contacto    = require('../models/Contacto');
 const Producto    = require('../models/Product');
 const Presupuesto = require('../models/Presupuesto');
+const Venta       = require('../models/Venta');
 const Tarea       = require('../models/Tarea');
 const Contador    = require('../models/Contador');
 const Empresa     = require('../models/Empresa');
@@ -36,13 +37,19 @@ const BASE_SYSTEM_PROMPT = `Sos Harry, el asistente inteligente de Nimbus CRM. T
 - Estados: borrador → enviado → aceptado / rechazado / vencido
 - Para crear uno: necesitás el cliente y los productos con precios y cantidades
 
+**Ventas**
+- Ventas cerradas vinculadas a un cliente
+- Estados: pendiente, procesando, completado, cancelado
+- Podés buscarlas con buscar_ventas
+
 **Tareas**
 - Actividades y seguimientos
 - Tipos: llamada, reunion, email, seguimiento, otro
 - Prioridades: alta, media, baja
+- Podés marcarlas como completadas con completar_tarea (necesitás el ID, que obtenés con listar_tareas_pendientes)
 
 ## Flujo de ventas típico
-Crear cliente → Crear presupuesto → Cliente acepta → Registrar venta → Emitir factura
+Crear cliente → Crear presupuesto → Actualizar estado a "enviado" → Cliente acepta → Estado "aceptado" → Registrar venta → Emitir factura
 
 ## Instrucciones
 - Siempre respondé en español rioplatense (vos, no usted)
@@ -53,6 +60,8 @@ Crear cliente → Crear presupuesto → Cliente acepta → Registrar venta → E
 - Sé conciso y amigable, usá markdown para formatear (negritas, listas)
 - Cuando crees algo exitosamente, incluí un link de navegación al final: [Ver en Clientes](/dashboard/clientes), [Ver en Productos](/dashboard/productos), etc.
 - Si te preguntan cómo hacer algo en el CRM, explicalo en 2-3 pasos simples
+- Para cambiar el estado de un presupuesto (borrador → enviado → aceptado/rechazado), usá actualizar_estado_presupuesto con el ID del presupuesto
+- Para marcar una tarea como completada, usá completar_tarea con el ID de la tarea (obtenés el ID con listar_tareas_pendientes)
 
 ## Soporte y escalación de bugs
 Si el usuario reporta un bug, un error persistente, algo roto en el sistema, o un problema que Harry no pudo resolver después de intentarlo:
@@ -252,11 +261,49 @@ const TOOL_DECLARATIONS = [
       },
       required: ['plan_deseado']
     }
+  },
+  {
+    name: 'buscar_ventas',
+    description: 'Busca ventas por nombre de cliente o estado.',
+    parameters: {
+      type: 'object',
+      properties: {
+        clienteNombre: { type: 'string', description: 'Nombre del cliente para filtrar ventas' },
+        estado:        { type: 'string', description: 'Estado: pendiente, procesando, completado, cancelado' }
+      }
+    }
+  },
+  {
+    name: 'completar_tarea',
+    description: 'Marca una tarea como completada. Primero usá listar_tareas_pendientes para obtener el ID de la tarea.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tareaId: { type: 'string', description: 'ID de la tarea a marcar como completada' }
+      },
+      required: ['tareaId']
+    }
+  },
+  {
+    name: 'actualizar_estado_presupuesto',
+    description: 'Cambia el estado de un presupuesto existente. Primero usá buscar_presupuestos para obtener el ID. Estados válidos: borrador, enviado, aceptado, rechazado, vencido.',
+    parameters: {
+      type: 'object',
+      properties: {
+        presupuestoId: { type: 'string', description: 'ID del presupuesto a actualizar (obtenido de buscar_presupuestos)' },
+        estado:        { type: 'string', description: 'Nuevo estado: borrador, enviado, aceptado, rechazado, vencido' }
+      },
+      required: ['presupuestoId', 'estado']
+    }
   }
 ];
 
 const MAX_MSG_LEN = 2000;
 const MAX_MSGS    = 20;
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 // Elimina saltos de línea y marcadores Markdown para prevenir prompt injection
 function sanitizarContexto(texto) {
@@ -271,8 +318,8 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
         empresaId,
         tipo: 'cliente',
         $or: [
-          { nombre:      { $regex: args.query, $options: 'i' } },
-          { razonSocial: { $regex: args.query, $options: 'i' } }
+          { nombre:      { $regex: escapeRegex(args.query), $options: 'i' } },
+          { razonSocial: { $regex: escapeRegex(args.query), $options: 'i' } }
         ]
       }).select('_id nombre razonSocial email cuit').limit(5).lean();
       return clientes.length > 0
@@ -285,8 +332,8 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
         empresaId,
         activo: true,
         $or: [
-          { nombre: { $regex: args.query, $options: 'i' } },
-          { sku:    { $regex: args.query, $options: 'i' } }
+          { nombre: { $regex: escapeRegex(args.query), $options: 'i' } },
+          { sku:    { $regex: escapeRegex(args.query), $options: 'i' } }
         ]
       }).select('_id nombre sku precio impuesto unidad stock').limit(5).lean();
       return productos.length > 0
@@ -300,7 +347,7 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
       if (args.clienteNombre) {
         const clientes = await Contacto.find({
           empresaId,
-          nombre: { $regex: args.clienteNombre, $options: 'i' }
+          nombre: { $regex: escapeRegex(args.clienteNombre), $options: 'i' }
         }).select('_id').lean();
         if (clientes.length > 0) {
           filtro.cliente = { $in: clientes.map(c => c._id) };
@@ -515,6 +562,60 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
       return { exito: true, mensaje: 'Solicitud de upgrade enviada al equipo.' };
     }
 
+    case 'buscar_ventas': {
+      const filtro = { empresaId };
+      if (args.estado) filtro.estado = args.estado;
+      if (args.clienteNombre) {
+        const clientes = await Contacto.find({
+          empresaId,
+          nombre: { $regex: escapeRegex(args.clienteNombre), $options: 'i' }
+        }).select('_id').lean();
+        if (clientes.length > 0) {
+          filtro.cliente = { $in: clientes.map(c => c._id) };
+        }
+      }
+      const ventas = await Venta.find(filtro)
+        .populate('cliente', 'nombre')
+        .select('numero estado total cliente createdAt')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+      return ventas.length > 0
+        ? { ventas: ventas.map(v => ({
+            id:      v._id,
+            numero:  v.numero,
+            cliente: v.cliente?.nombre || 'Sin cliente',
+            estado:  v.estado,
+            total:   v.total,
+            fecha:   v.createdAt
+          })) }
+        : { ventas: [], mensaje: 'No se encontraron ventas con esos filtros' };
+    }
+
+    case 'completar_tarea': {
+      const tarea = await Tarea.findOneAndUpdate(
+        { _id: args.tareaId, empresaId },
+        { estado: 'completada' },
+        { new: true }
+      ).select('titulo estado').lean();
+      if (!tarea) return { error: 'Tarea no encontrada o no pertenece a tu empresa' };
+      return { exito: true, titulo: tarea.titulo, estado: tarea.estado, path: '/dashboard/tareas' };
+    }
+
+    case 'actualizar_estado_presupuesto': {
+      const ESTADOS_VALIDOS = ['borrador', 'enviado', 'aceptado', 'rechazado', 'vencido'];
+      if (!ESTADOS_VALIDOS.includes(args.estado)) {
+        return { error: `Estado inválido. Opciones: ${ESTADOS_VALIDOS.join(', ')}` };
+      }
+      const presupuesto = await Presupuesto.findOneAndUpdate(
+        { _id: args.presupuestoId, empresaId },
+        { estado: args.estado },
+        { new: true }
+      ).select('numero estado').lean();
+      if (!presupuesto) return { error: 'Presupuesto no encontrado o no pertenece a tu empresa' };
+      return { exito: true, numero: presupuesto.numero, estado: presupuesto.estado, path: '/dashboard/presupuestos' };
+    }
+
     default:
       return { error: `Herramienta desconocida: ${nombre}` };
   }
@@ -522,7 +623,7 @@ async function ejecutarHerramienta(nombre, args, empresaId, usuarioId) {
 
 const enviarMensaje = async (req, res) => {
   try {
-    const { messages, currentPage, currentPath } = req.body;
+    const { messages, currentPage, currentPath, recordId } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ mensaje: 'Se requiere el array de mensajes' });
@@ -568,7 +669,12 @@ const enviarMensaje = async (req, res) => {
     if (currentPage) {
       const pageSafe = sanitizarContexto(currentPage);
       const pathSafe = sanitizarContexto(currentPath);
-      systemPrompt += `\n\n## Contexto actual\nEl usuario está en la sección **${pageSafe}** del CRM (ruta: ${pathSafe || pageSafe}). Tené esto en cuenta para dar respuestas más relevantes y proactivas.`;
+      let contexto = `\n\n## Contexto actual\nEl usuario está en la sección **${pageSafe}** del CRM (ruta: ${pathSafe || pageSafe}).`;
+      if (recordId && /^[a-f0-9]{24}$/i.test(recordId)) {
+        contexto += ` Está viendo el registro con ID \`${recordId}\`. Podés usar este ID directamente en las herramientas cuando corresponda (por ejemplo, para actualizar el estado de ese presupuesto o completar esa tarea).`;
+      }
+      contexto += ' Tené esto en cuenta para dar respuestas más relevantes y proactivas.';
+      systemPrompt += contexto;
     }
 
     const groqMessages = [
@@ -635,7 +741,7 @@ const enviarMensaje = async (req, res) => {
 
   } catch (error) {
     console.error('Error en chatController:', error);
-    res.status(500).json({ mensaje: 'Error al procesar el mensaje', error: error.message });
+    res.status(500).json({ mensaje: 'Error al procesar el mensaje' });
   }
 };
 
