@@ -1,7 +1,7 @@
 // Rutas de autenticación. Conecta con authController.js y se usa en Login.jsx
 const express = require('express');
 const router = express.Router();
-const { loginUsuario, olvidePassword, restablecerPassword } = require('../controllers/authController');
+const { loginUsuario, olvidePassword, restablecerPassword, verifyEmail } = require('../controllers/authController');
 const { check } = require('express-validator');
 const { validar } = require('../middleware/validationMiddleware');
 
@@ -28,5 +28,7 @@ router.put(
   validar,
   restablecerPassword
 );
+
+router.get('/verify-email/:token', verifyEmail);
 
 module.exports = router;

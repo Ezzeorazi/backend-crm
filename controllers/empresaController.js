@@ -3,6 +3,7 @@ const User = require('../models/User');
 const multer = require('multer');
 const cloudinary = require('../config/cloudinary');
 const { sendMail } = require('../utils/mailer');
+const crypto = require('crypto');
 
 const uploadLogo = multer({
   storage: multer.memoryStorage(),
@@ -60,20 +61,44 @@ const crearEmpresaDemo = async (req, res) => {
     return res.status(500).json({ mensaje: 'Error al crear la empresa.', error: error.message });
   }
 
+  let userGuardado = null;
   try {
+    const verificationToken = crypto.randomBytes(20).toString('hex');
     const user = new User({
       nombre: nombreUsuario,
       email: emailUsuario,
       contraseña,
       rol: 'admin',
-      empresaId: empresaGuardada._id
+      empresaId: empresaGuardada._id,
+      verificationToken
     });
-    await user.save();
+    userGuardado = await user.save();
+
+    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
+    const verifyUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/verify-email/${verificationToken}`;
+
+    await sendMail({
+      to: emailUsuario,
+      subject: 'Verificá tu email para activar tu cuenta de Nimbus CRM',
+      html: `
+        <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+          <h2 style="color:#4f46e5">¡Hola ${nombreUsuario}! Te damos la bienvenida a Nimbus CRM 👋</h2>
+          <p>Para poder iniciar sesión y usar tu nueva cuenta, por favor verificá tu dirección de email haciendo clic en el siguiente enlace:</p>
+          <div style="text-align:center;margin:30px 0">
+            <a href="${verifyUrl}" style="background-color:#4f46e5;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Verificar Email</a>
+          </div>
+          <p>Si el botón no funciona, podés copiar y pegar este enlace en tu navegador:</p>
+          <p style="word-break:break-all;color:#64748b;font-size:14px;">${verifyUrl}</p>
+          <p>Si no fuiste vos quien creó esta cuenta, podés ignorar este correo.</p>
+        </div>
+      `
+    });
   } catch (error) {
     // Rollback: eliminar la empresa si el usuario falla
     await Empresa.findByIdAndDelete(empresaGuardada._id).catch(() => {});
-    console.error('Error al guardar usuario admin:', error);
-    return res.status(500).json({ mensaje: 'Error al crear el usuario administrador.', error: error.message });
+    if (userGuardado) await User.findByIdAndDelete(userGuardado._id).catch(() => {});
+    console.error('Error al guardar usuario admin o enviar email:', error);
+    return res.status(500).json({ mensaje: 'Error al crear el usuario administrador o enviar el email.', error: error.message });
   }
 
   // Notificación al owner de la plataforma
@@ -121,6 +146,7 @@ const subirLogo = async (req, res) => {
         overwrite: true,
       });
       empresa.logoUrl = result.secure_url;
+      empresa.onboarding.logo = true; // Marcar paso de onboarding
       await empresa.save();
     }
 
@@ -159,6 +185,8 @@ const actualizarEmpresa = async (req, res) => {
       if (configuracion.tipoCambio !== undefined) empresa.configuracion.tipoCambio = configuracion.tipoCambio;
     }
 
+    empresa.onboarding.perfil = true; // Marcar paso de onboarding
+
     await empresa.save();
     res.json(empresa);
   } catch (error) {
@@ -166,4 +194,32 @@ const actualizarEmpresa = async (req, res) => {
   }
 };
 
-module.exports = { crearEmpresaDemo, subirLogo, uploadLogo, obtenerEmpresa, actualizarEmpresa };
+const reclamarRecompensaOnboarding = async (req, res) => {
+  try {
+    const empresa = await Empresa.findById(req.empresaId);
+    if (!empresa) return res.status(404).json({ mensaje: 'Empresa no encontrada' });
+
+    if (empresa.onboarding.recompensaReclamada) {
+      return res.status(400).json({ mensaje: 'La recompensa ya fue reclamada' });
+    }
+
+    const { perfil, logo, venta } = empresa.onboarding;
+    if (!perfil || !logo || !venta) {
+      return res.status(400).json({ mensaje: 'Aún no completaste todos los pasos del onboarding' });
+    }
+
+    // Dar recompensa: Restar 10 usos de Harry para este mes (lo que da 10 mensajes gratis adicionales)
+    if (empresa.chatStats && empresa.chatStats.usos > 0) {
+      empresa.chatStats.usos = Math.max(0, empresa.chatStats.usos - 10);
+    }
+
+    empresa.onboarding.recompensaReclamada = true;
+    await empresa.save();
+
+    res.json({ mensaje: '¡Recompensa reclamada! 10 mensajes de Harry añadidos a tu cuenta.', empresa });
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al reclamar recompensa', error: error.message });
+  }
+};
+
+module.exports = { crearEmpresaDemo, subirLogo, uploadLogo, obtenerEmpresa, actualizarEmpresa, reclamarRecompensaOnboarding };

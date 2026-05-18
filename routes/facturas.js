@@ -7,13 +7,15 @@ const {
   obtenerFactura,
   crearFactura,
   actualizarFactura,
-  eliminarFactura
+  eliminarFactura,
+  descargarPDF
 } = require('../controllers/facturaController');
 
 const { verificarToken, permitirRoles } = require('../middleware/authMiddleware');
 
 router.get('/', verificarToken, obtenerFacturas);
 router.get('/:id', verificarToken, obtenerFactura);
+router.get('/:id/pdf', verificarToken, descargarPDF);
 router.post('/', verificarToken, permitirRoles('admin', 'ventas'), crearFactura);
 router.put('/:id', verificarToken, permitirRoles('admin', 'ventas'), actualizarFactura);
 router.delete('/:id', verificarToken, permitirRoles('admin'), eliminarFactura);

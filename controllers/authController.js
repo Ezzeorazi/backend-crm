@@ -16,6 +16,10 @@ const loginUsuario = async (req, res) => {
       return res.status(403).json({ mensaje: 'Usuario desactivado. Contactá al administrador.' });
     }
 
+    if (!usuario.emailVerificado) {
+      return res.status(403).json({ mensaje: 'Debes verificar tu email antes de iniciar sesión. Revisá tu bandeja de entrada o spam.' });
+    }
+
     const passwordValida = await usuario.compararPassword(contraseña);
     if (!passwordValida) {
       return res.status(401).json({ mensaje: 'Contraseña incorrecta' });
@@ -138,4 +142,27 @@ const restablecerPassword = async (req, res) => {
   }
 };
 
-module.exports = { loginUsuario, olvidePassword, restablecerPassword };
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const usuario = await User.findOne({ verificationToken: token });
+
+    if (!usuario) {
+      // Usamos el HTML de Nimbus para dar una respuesta bonita o redirigimos
+      return res.status(400).send('<h1>Enlace inválido o expirado.</h1><p>Contactá a soporte.</p>');
+    }
+
+    usuario.emailVerificado = true;
+    usuario.activo = true;
+    usuario.verificationToken = undefined;
+    await usuario.save();
+
+    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/login?verified=true`);
+  } catch (error) {
+    console.error('Error al verificar email:', error);
+    res.status(500).send('<h1>Error interno al verificar email</h1>');
+  }
+};
+
+module.exports = { loginUsuario, olvidePassword, restablecerPassword, verifyEmail };

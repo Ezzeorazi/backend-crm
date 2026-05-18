@@ -11,7 +11,9 @@ const userSchema = new mongoose.Schema({
     enum:    ['admin', 'ventas', 'compras', 'inventario', 'rrhh', 'produccion', 'soporte'],
     default: 'ventas'
   },
-  activo:       { type: Boolean, default: true },
+  activo:       { type: Boolean, default: false }, // Se activa al verificar el email
+  emailVerificado: { type: Boolean, default: false },
+  verificationToken: String,
   avatar:       String,
   telefono:     String,
   ultimoAcceso: Date,

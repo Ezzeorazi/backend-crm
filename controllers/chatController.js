@@ -695,7 +695,7 @@ const enviarMensaje = async (req, res) => {
     }));
 
     let completion = await groq.chat.completions.create({
-      model:       'llama-3.3-70b-versatile',
+      model:       'llama-3.1-8b-instant',
       messages:    groqMessages,
       tools:       groqTools,
       tool_choice: 'auto',
@@ -727,7 +727,7 @@ const enviarMensaje = async (req, res) => {
       }
 
       completion = await groq.chat.completions.create({
-        model:       'llama-3.3-70b-versatile',
+        model:       'llama-3.1-8b-instant',
         messages:    groqMessages,
         tools:       groqTools,
         tool_choice: 'auto',
@@ -741,8 +741,101 @@ const enviarMensaje = async (req, res) => {
 
   } catch (error) {
     console.error('Error en chatController:', error);
+    if (error.status === 429) {
+      return res.status(429).json({ mensaje: 'Harry está recibiendo demasiadas consultas en este momento. Por favor, intentá de nuevo en unos minutos.' });
+    }
     res.status(500).json({ mensaje: 'Error al procesar el mensaje' });
   }
 };
 
-module.exports = { enviarMensaje };
+const organizarExcel = async (req, res) => {
+  try {
+    const { tipo, datos } = req.body;
+
+    if (!tipo || !datos || !Array.isArray(datos)) {
+      return res.status(400).json({ mensaje: 'Faltan datos o tipo de migración' });
+    }
+
+    const esquema = {
+      clientes: "nombre, telefono, email, ciudad, provincia, direccion, cuit, notas",
+      proveedores: "nombre, telefono, email, razonSocial, cuit, ciudad, notas",
+      productos: "nombre, sku, precio, stock, costo, categoria, unidad, descripcion, impuesto"
+    }[tipo];
+
+    if (!esquema) return res.status(400).json({ mensaje: 'Tipo desconocido' });
+
+    // Tomar solo las primeras 15 filas para no explotar tokens, y luego mapear las llaves.
+    const llavesDetectadas = Object.keys(datos[0] || {}).join(", ");
+    
+    // Convertir todo a string compacto
+    const datosString = JSON.stringify(datos.slice(0, 30));
+
+    const prompt = `Actúa como un conversor de JSON. Te voy a dar un array de objetos con llaves desordenadas: [${llavesDetectadas}]. 
+Debes mapear y transformar esas llaves a este esquema exacto: ${esquema}. 
+Reglas:
+- Si falta una llave obligatoria como 'nombre', intenta deducirla.
+- 'precio', 'stock', 'costo' deben ser números.
+- 'sku' debe ser mayúsculas sin espacios.
+- Devuelve ÚNICAMENTE un JSON array con los datos formateados. Sin markdown, sin explicaciones, solo el JSON raw array válido: [...].
+
+Datos a transformar:
+${datosString}`;
+
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant', // Modelo rápido y económico para esto
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+    });
+
+    let resultText = completion.choices[0].message.content.trim();
+    // Limpiar markdown si el LLM lo incluye por accidente
+    if (resultText.startsWith('\`\`\`json')) {
+      resultText = resultText.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
+    } else if (resultText.startsWith('\`\`\`')) {
+      resultText = resultText.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+    }
+
+    let jsonLimpio;
+    try {
+      jsonLimpio = JSON.parse(resultText);
+    } catch (e) {
+      console.error('Groq no devolvió JSON válido', resultText);
+      return res.status(500).json({ mensaje: 'Harry no pudo organizar los datos. Revisá que el Excel no tenga formatos raros.' });
+    }
+
+    // Si había más de 30, aplicamos el mapeo detectado al resto
+    if (datos.length > 30 && jsonLimpio.length > 0) {
+      // Tomamos el primer objeto limpio y el primer objeto sucio para deducir el mapeo
+      const sucioObj = datos[0];
+      const limpioObj = jsonLimpio[0];
+      const mapeo = {};
+      
+      for (const keyLimpia in limpioObj) {
+        for (const keySucia in sucioObj) {
+          if (String(sucioObj[keySucia]).trim() === String(limpioObj[keyLimpia]).trim()) {
+            mapeo[keyLimpia] = keySucia;
+            break;
+          }
+        }
+      }
+      
+      // Aplicar el mapeo al resto
+      for (let i = 30; i < datos.length; i++) {
+        const d = datos[i];
+        const nuevo = {};
+        for (const keyLimpia in mapeo) {
+          nuevo[keyLimpia] = d[mapeo[keyLimpia]];
+        }
+        jsonLimpio.push(nuevo);
+      }
+    }
+
+    res.json(jsonLimpio);
+
+  } catch (error) {
+    console.error('Error al organizar Excel con Groq:', error);
+    res.status(500).json({ mensaje: 'Error al comunicarse con Harry' });
+  }
+};
+
+module.exports = { enviarMensaje, organizarExcel };

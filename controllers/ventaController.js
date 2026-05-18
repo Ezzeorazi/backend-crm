@@ -2,6 +2,7 @@ const Venta    = require('../models/Venta');
 const Producto = require('../models/Product');
 const MovimientoStock = require('../models/MovimientoStock');
 const Contador = require('../models/Contador');
+const Empresa  = require('../models/Empresa');
 
 const obtenerVentas = async (req, res) => {
   try {
@@ -102,6 +103,13 @@ const crearVenta = async (req, res) => {
         usuarioId:       req.usuario?.id
       }], { session });
     }
+
+    // Marcar hito de onboarding
+    await Empresa.updateOne(
+      { _id: req.empresaId },
+      { $set: { 'onboarding.venta': true } },
+      { session }
+    );
 
     await session.commitTransaction();
     res.status(201).json(venta);

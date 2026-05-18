@@ -17,8 +17,8 @@ const {
 } = require('../controllers/oportunidadController');
 
 // CRUD principal
-router.get('/',    verificarToken, obtenerOportunidades);
-router.get('/:id', verificarToken, obtenerOportunidad);
+router.get('/',    verificarToken, permitirRoles('admin', 'ventas'), obtenerOportunidades);
+router.get('/:id', verificarToken, permitirRoles('admin', 'ventas'), obtenerOportunidad);
 
 router.post(
   '/',

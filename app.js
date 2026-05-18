@@ -83,6 +83,7 @@ app.use('/api/ordenes',         require('./routes/ordenes'));
 app.use('/api/ordenes-compra', require('./routes/ordenCompras'));
 app.use('/api/ordenes-pago',  require('./routes/ordenesPago'));
 app.use('/api/oportunidades', require('./routes/oportunidades'));
+app.use('/api/empleados', require('./routes/empleados'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/chat/publico', require('./routes/chatPublico'));  // público primero (sin auth)
 app.use('/api/chat',         require('./routes/chat'));

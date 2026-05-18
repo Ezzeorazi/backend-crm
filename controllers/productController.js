@@ -4,7 +4,7 @@ const Producto = require('../models/Product');
 // GET todos los productos
 const obtenerProductos = async (req, res) => {
   try {
-    const productos = await Producto.find({ empresaId: req.empresaId });
+    const productos = await Producto.find({ empresaId: req.empresaId, activo: true });
     res.json(productos);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al obtener productos', error: error.message });
@@ -54,14 +54,18 @@ const actualizarProducto = async (req, res) => {
   }
 };
 
-// DELETE
+// DELETE (Soft delete)
 const eliminarProducto = async (req, res) => {
   try {
-    const producto = await Producto.findOneAndDelete({ _id: req.params.id, empresaId: req.empresaId });
+    const producto = await Producto.findOneAndUpdate(
+      { _id: req.params.id, empresaId: req.empresaId },
+      { activo: false },
+      { new: true }
+    );
     if (!producto) {
       return res.status(404).json({ mensaje: 'Producto no encontrado' });
     }
-    res.json({ mensaje: 'Producto eliminado' });
+    res.json({ mensaje: 'Producto eliminado correctamente' });
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al eliminar producto', error: error.message });
   }

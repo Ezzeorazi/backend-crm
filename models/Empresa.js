@@ -45,7 +45,13 @@ const empresaSchema = new mongoose.Schema({
     enum:    ['activo', 'inactivo', 'suspendido'],
     default: 'activo'
   },
-  configuracion: { type: configuracionSchema, default: () => ({}) }
+  configuracion: { type: configuracionSchema, default: () => ({}) },
+  onboarding: {
+    perfil: { type: Boolean, default: false },
+    logo: { type: Boolean, default: false },
+    venta: { type: Boolean, default: false },
+    recompensaReclamada: { type: Boolean, default: false }
+  }
 }, {
   timestamps: true
 });
